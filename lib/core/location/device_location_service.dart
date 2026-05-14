@@ -1,7 +1,10 @@
 import 'package:geolocator/geolocator.dart';
 
+import 'current_position_reader.dart';
+
 /// Pobiera pozycję GPS urządzenia. Logika uprawnień i błędów poza widgetami.
-class DeviceLocationService {
+class DeviceLocationService implements CurrentPositionReader {
+  @override
   Future<Position> getCurrentPosition() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {

@@ -19,4 +19,11 @@ class ImageStorageService {
     await File(file.path).copy(target.path);
     return target.path;
   }
+
+  Future<void> deleteIfExists(String path) async {
+    final f = File(path);
+    if (await f.exists()) {
+      await f.delete();
+    }
+  }
 }

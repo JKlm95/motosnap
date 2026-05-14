@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/location/device_location_service.dart';
+import '../core/location/geocoding_location_enricher.dart';
 import '../core/media/camera_capture_service.dart';
 import '../core/media/image_storage_service.dart';
 import '../core/remote/cloud_scan_sync_service.dart';
@@ -34,10 +35,11 @@ class AppBootstrap {
 
     final scanRepository = ScanRepositoryImpl(
       localDataSource: scanLocal,
-      locationService: DeviceLocationService(),
+      positionReader: DeviceLocationService(),
       imageStorage: ImageStorageService(),
       cloudSync: NoOpCloudScanSyncService(),
       analysisService: NoOpVehicleAnalysisService(),
+      locationEnricher: GeocodingLocationEnricher(),
     );
 
     final settingsRepository = SettingsRepositoryImpl(settingsLocal);

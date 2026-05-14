@@ -1,30 +1,27 @@
 import 'package:equatable/equatable.dart';
 
-enum ScanUiStatus { idle, working, success, error }
+import '../../domain/vehicle_scan.dart';
+
+enum ScanFlowPhase {
+  idle,
+  requestingPermissions,
+  capturing,
+  saving,
+  success,
+  error,
+}
 
 class ScanState extends Equatable {
   const ScanState({
-    this.status = ScanUiStatus.idle,
-    this.userMessage,
-    this.lastSavedId,
+    this.phase = ScanFlowPhase.idle,
+    this.savedScan,
+    this.errorMessage,
   });
 
-  final ScanUiStatus status;
-  final String? userMessage;
-  final String? lastSavedId;
-
-  ScanState copyWith({
-    ScanUiStatus? status,
-    String? userMessage,
-    String? lastSavedId,
-  }) {
-    return ScanState(
-      status: status ?? this.status,
-      userMessage: userMessage,
-      lastSavedId: lastSavedId ?? this.lastSavedId,
-    );
-  }
+  final ScanFlowPhase phase;
+  final VehicleScan? savedScan;
+  final String? errorMessage;
 
   @override
-  List<Object?> get props => [status, userMessage, lastSavedId];
+  List<Object?> get props => [phase, savedScan, errorMessage];
 }

@@ -1,42 +1,55 @@
 # MotoSnap
 
-MVP aplikacji Flutter do skanowania pojazdów: zdjęcie z aparatu, **wymagana** lokalizacja GPS, zapis skanu lokalnie oraz przygotowanie pod późniejszą synchronizację z Firebase i analizę AI (na razie tylko kontrakty / no-op).
+**MotoSnap** to mobilny MVP do dokumentowania pojazdów w terenie: jedno dotknięcie, zdjęcie z **aparatu**, **obowiązkowy GPS** i zapis **lokalnej historii** — gotowe pod dalszą synchronizację z chmurą i rozpoznanie AI, bez udawania gotowych wyników.
 
-## Stack
+---
 
-- **Architektura:** clean architecture, układ **feature-first** (`lib/features/...`, `lib/core/...`, `lib/app/...`).
-- **Stan:** `flutter_bloc` (Cubit tam, gdzie wystarczy prostszy przepływ).
-- **Nawigacja:** `go_router` + `StatefulShellRoute.indexedStack` (Skan / Historia / Ustawienia).
-- **Lokalny cache:** **Hive** (`hive_flutter`) z zapisem JSON modelu skanu. **Isar** jest świetny przy bardzo dużych zbiorach i zapytaniach indeksowanych, ale na tym etapie wygrywa prostszy stack: Hive + jeden model JSON bez drugiego generatora (Isar + `json_serializable` często utrudniają `build_runner`). Dodatkowo w obecnym SDK `dart run build_runner` potrafi się wyłożyć na „build hooks” w transitive dependencies — stąd **modele są ręcznymi immutable DTO** z `toJson` / `fromJson` (łatwo później zastąpić Freezed + `json_serializable`, gdy toolchain się ustabilizuje).
-- **Firebase / AI:** nie są jeszcze podłączone; są interfejsy (`CloudScanSyncService`, `VehicleAnalysisService`) i szkielety ekranów auth.
+## Dlaczego warto zerknąć
 
-## Uruchomienie
+- **Przepływ „skan → historia”** działa w pełni offline: uprawnienia, zdjęcie, pozycja, reverse geocoding (best effort), zapis w **Hive** jako JSON.
+- **UX w stylu iOS**: stonowany motyw jasny/ciemny, duży przycisk skanu, czytelne karty sukcesu/błędu, lista historii z miniaturą i statusem.
+- **Architektura pod rozwój**: feature-first, repozytorium skanów z `watchScans()`, szczegóły rekordu, publiczność rekordu, usuwanie — bez Firebase w tej iteracji.
+
+---
+
+## Funkcje (stan obecny)
+
+| Obszar | Co działa |
+|--------|-----------|
+| **Skan** | Prośba o kamerę + lokalizację, zdjęcie tylko z aparatu (bez galerii), zapis pliku i rekordu `waitingForRecognition` |
+| **Historia** | Lista lokalna, miniatura, data, miejsce (jeśli uda się z geokodowania), odświeżanie |
+| **Szczegóły** | Pełnoekranowy widok zdjęcia, status, lokalizacja, przełącznik publiczny/prywatny, usuwanie |
+| **Ustawienia** | Motyw systemowy/jasny/ciemny, placeholder pod logowanie (Firebase później) |
+
+Szczegóły techniczne, modele i kompromisy: **[TECHNICAL.md](TECHNICAL.md)**.
+
+---
+
+## Szybki start
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-## Testy i jakość
+Wymagane platformy: **Android** i **iOS** (z akceptacją uprawnień do kamery i lokalizacji).
+
+---
+
+## Jakość kodu
 
 ```bash
+dart format .
 flutter analyze
 flutter test
-dart format .
 ```
 
-## Struktura `lib/`
+---
 
-- `app/` — `MotosnapApp`, router, motyw, bootstrap (Hive, repozytoria).
-- `core/` — usługi wspólne (lokalizacja, aparat, storage, „chmura” jako abstrakcja).
-- `features/` — `splash`, `auth`, `scan`, `history`, `settings` (data / domain / presentation).
+## Roadmap (wysoki poziom)
 
-## Uprawnienia
+1. **Firebase** — Auth, Storage, Firestore, kolejka `pendingSync`.
+2. **AI** — wypełnianie `vehicleInfo`, zmiana statusu na `recognized` / `failed`.
+3. **Synchronizacja** — konflikty, retry, tło.
 
-Skonfigurowane wpisy w **AndroidManifest** oraz **Info.plist** (kamera + lokalizacja). Po stronie użytkownika trzeba zaakceptować dialogi systemowe.
-
-## Następne kroki (poza tym PR)
-
-- Firebase Auth + synchronizacja skanów.
-- Implementacja `CloudScanSyncService` i kolejki uploadu.
-- Integracja `VehicleAnalysisService` z backendem AI.
+Pull requesty mile widziane; produkt jest świadomie „portfolio-grade”: czytelny kod, uczciwe komunikaty, bez magii w UI.

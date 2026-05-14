@@ -1,0 +1,98 @@
+# MotoSnap — dokumentacja techniczna
+
+## Cel dokumentu
+
+Opisuje architekturę, przepływ danych, modele, repozytoria, routing oraz znane kompromisy i dług techniczny. Aktualizować przy każdej istotnej zmianie implementacji.
+
+---
+
+## Architektura
+
+- **`lib/app/`** — `AppBootstrap` (inicjalizacja Hive, składanie zależności), `MotosnapApp`, `go_router`, motyw.
+- **`lib/core/`** — usługi infrastrukturalne: GPS (`DeviceLocationService` + `CurrentPositionReader`), reverse geocoding (`GeocodingLocationEnricher` / `PassthroughLocationEnricher`), aparat (`CameraCaptureService`, wyłącznie `ImageSource.camera`), zapis plików (`ImageStorageService`), uprawnienia (`ScanPermissionsService` + `permission_handler`), Hive (`ScanLocalDataSource`, `SettingsLocalDataSource`), abstrakcja chmury (`CloudScanSyncService`).
+- **`lib/features/`** — `splash`, `auth` (placeholdery), `scan` (domena, repozytorium, UI skanu + szczegółów), `history` (lista), `settings`.
+
+Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach core; widgety/Cubit ograniczają się do stanu UI i wywołań repozytorium.
+
+---
+
+## Model `VehicleScan` (DTO, ręczny JSON)
+
+- **Wersjonowanie:** `toJson()` zapisuje `schema_version: 2`. `fromJson()` rozpoznaje rekordy legacy (pola `image_path`, `captured_at`, `latitude`/`longitude` na root) i mapuje je na nowy kształt ze statusem `waitingForRecognition`.
+- **Status:** `VehicleScanStatus` — `draft`, `waitingForRecognition`, `recognized`, `failed` (UI nie symuluje rozpoznania — po zapisie lokalnym jest `waitingForRecognition`).
+- **Lokalizacja:** `ScanLocation` — `latitude`, `longitude`, opcjonalnie `city`, `country`, `displayName`, `isApproximatePublicLocation` (domyślnie `true`).
+- **Pojazd:** `VehicleInfo?` — pola pod przyszłe AI; `null` oznacza brak rozpoznania.
+- **Pola dodatkowe:** `remoteImageUrl`, `recognitionError`, `isPublic`, `pendingSync`.
+
+Enum **`VehicleType`** jest w modelu informacji o pojeździe; dopuszczalne są `unknown` / `other`.
+
+---
+
+## Repozytorium skanów (`ScanRepository` / `ScanRepositoryImpl`)
+
+Metody:
+
+| Metoda | Zachowanie |
+|--------|--------------|
+| `watchScans()` | `async*` — pierwsza emisja pełnej listy, potem po każdej zmianie (wewnętrzny broadcast `void`). |
+| `getRecentScans(limit)` | Sort malejąco po `createdAt`, obcięcie do `limit`. |
+| `getScan(id)` | Odczyt z Hive. |
+| `createScan(capturedPhoto:)` | Kopia pliku do katalogu aplikacji → GPS (wymagany) → enrich lokalizacji → zapis `VehicleScan` → no-op sync/AI → emisja zmiany. Przy błędzie po zapisie pliku — usunięcie skopiowego pliku. |
+| `updateScan` | `upsert` z aktualizacją `updatedAt`. |
+| `deleteScan` | Usunięcie pliku lokalnego (best effort) + rekordu w Hive. |
+| `markAsPublic` / `markAsPrivate` | Odczyt, `copyWith(isPublic: ...)`, `updateScan`. |
+
+---
+
+## Hive
+
+- Box: `vehicle_scans_json` — wartość: `jsonEncode(VehicleScan.toJson())`, klucz: `id`.
+- Ustawienia motywu: osobny box (`SettingsLocalDataSource`).
+
+---
+
+## Routing (`go_router`)
+
+- Shell: `/scan`, `/history`, `/settings` (`StatefulShellRoute.indexedStack`).
+- Poza shellem: `/vehicle-scan/:scanId` — szczegóły skanu; `BlocProvider` + `ScanDetailCubit` tworzone w builderze trasy.
+- `AppRoutes.vehicleScan(id)` buduje ścieżkę.
+
+---
+
+## Uprawnienia
+
+- **Android / iOS:** manifest / Info.plist — kamera, lokalizacja when-in-use; brak uprawnień do galerii (import z galerii nie jest wspierany).
+- **Runtime:** `ScanPermissionsService` (permission_handler) przed otwarciem aparatu; `Geolocator` nadal waliduje usługi i zgody przy `getCurrentPosition`.
+
+---
+
+## Zależności istotne dla MVP
+
+- `permission_handler` — jawna prośba o kamerę i lokalizację.
+- `geocoding` — uzupełnienie `city` / `country` / `displayName` (best effort; sieć/zależność od platformy).
+- `hive_flutter`, `image_picker` (tylko kamera), `geolocator`, `go_router`, `flutter_bloc`.
+
+---
+
+## Testy
+
+- `test/vehicle_scan_test.dart` — roundtrip JSON v2 + migracja legacy.
+- `test/scan_repository_test.dart` — integracja repozytorium z Hive + stub pozycji oraz widget historii (pusty stan).
+- `test/widget_test.dart` — lekki smoke MaterialApp.
+
+---
+
+## Dług techniczny / TODO
+
+1. **Freezed / `json_serializable`** — celowo wyłączone do czasu stabilnego `build_runner` w łańcuchu zależności; DTO są ręczne.
+2. **`watchScans`** — implementacja oparta o broadcast i pełne przeładowanie listy; przy dużej liczbie rekordów rozważyć stronicowanie lub incremental sync.
+3. **Usuwanie pliku przy nieudanym zapisie Hive** — obsłużone tylko dla etapu po `persistCameraImage` a przed sukcesem zapisu rekordu; inne ścieżki błędów warto dalej twardo audytować.
+4. **Szczegóły skanu** — brak edycji pól `vehicleInfo` z UI (świadomie do czasu AI).
+5. **Firebase** — `pendingSync`, `CloudScanSyncService`, `VehicleAnalysisService` pozostają stubami.
+
+---
+
+## Kompromisy
+
+- Reverse geocoding może zawieść (brak sieci, limity API platformy) — UI pokazuje współrzędne jako fallback.
+- `ScanPermissionsService` tworzony inline w `AppRouter` dla zakładki Skan (bez globalnego DI) — akceptowalne na MVP; przy rozroście przenieść do `RepositoryProvider` / injectora.

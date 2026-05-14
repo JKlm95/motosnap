@@ -5,8 +5,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../features/scan/domain/vehicle_scan.dart';
 
 /// Lokalny cache skanów: Hive + JSON modelu [VehicleScan].
-/// Wybrano Hive zamiast Isar: lżejszy stack na MVP, prosty zapis JSON bez drugiego
-/// generatora schematu (Isar + json_serializable bywa problematyczny w tooling).
 class ScanLocalDataSource {
   ScanLocalDataSource(this._box);
 
@@ -27,12 +25,24 @@ class ScanLocalDataSource {
                   VehicleScan.fromJson(jsonDecode(raw) as Map<String, dynamic>),
             )
             .toList()
-          ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return items;
+  }
+
+  VehicleScan? readById(String id) {
+    final raw = _box.get(id);
+    if (raw == null) {
+      return null;
+    }
+    return VehicleScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
   }
 
   Future<void> upsert(VehicleScan scan) async {
     await _box.put(scan.id, jsonEncode(scan.toJson()));
+  }
+
+  Future<void> delete(String id) async {
+    await _box.delete(id);
   }
 
   Future<void> clear() => _box.clear();

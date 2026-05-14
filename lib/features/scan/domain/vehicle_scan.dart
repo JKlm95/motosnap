@@ -1,74 +1,151 @@
-/// Status synchronizacji skanu z backendem (Firebase) — do podpięcia w kolejnych krokach.
-enum ScanSyncStatus { pending, uploaded, failed }
+import 'scan_location.dart';
+import 'vehicle_info.dart';
+import 'vehicle_scan_status.dart';
 
-/// Model skanu pojazdu (JSON snake_case — pod przyszłe API / Firestore).
+/// Pełny model skanu (JSON snake_case — pod późniejsze API / Firestore).
 ///
-/// Docelowo można tu wprowadzić Freezed + json_serializable po ustabilizowaniu
-/// `build_runner` dla Twojej wersji SDK (Dart 3.10.x potrafi blokować codegen
-/// przez „build hooks” w transitive dependencies).
+/// Ręczne DTO (bez Freezed) ze względu na stabilność `build_runner` w tym projekcie.
 class VehicleScan {
   const VehicleScan({
     required this.id,
-    required this.imagePath,
-    required this.latitude,
-    required this.longitude,
-    required this.capturedAt,
-    this.syncStatus = ScanSyncStatus.pending,
+    required this.localImagePath,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.status,
+    required this.location,
+    this.remoteImageUrl,
+    this.vehicleInfo,
+    this.isPublic = false,
+    this.recognitionError,
+    this.pendingSync = true,
   });
 
   final String id;
-  final String imagePath;
-  final double latitude;
-  final double longitude;
-  final DateTime capturedAt;
-  final ScanSyncStatus syncStatus;
+  final String localImagePath;
+  final String? remoteImageUrl;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final VehicleScanStatus status;
+  final ScanLocation location;
+  final VehicleInfo? vehicleInfo;
+  final bool isPublic;
+  final String? recognitionError;
+  final bool pendingSync;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
+      'schema_version': 2,
       'id': id,
-      'image_path': imagePath,
-      'latitude': latitude,
-      'longitude': longitude,
-      'captured_at': capturedAt.toIso8601String(),
-      'sync_status': switch (syncStatus) {
-        ScanSyncStatus.pending => 'pending',
-        ScanSyncStatus.uploaded => 'uploaded',
-        ScanSyncStatus.failed => 'failed',
-      },
+      'local_image_path': localImagePath,
+      'remote_image_url': remoteImageUrl,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'status': status.name,
+      'location': location.toJson(),
+      'vehicle_info': vehicleInfo?.toJson(),
+      'is_public': isPublic,
+      'recognition_error': recognitionError,
+      'pending_sync': pendingSync,
     };
   }
 
   factory VehicleScan.fromJson(Map<String, dynamic> json) {
-    final statusRaw = json['sync_status'] as String? ?? 'pending';
-    final status = ScanSyncStatus.values.firstWhere(
-      (e) => e.name == statusRaw,
-      orElse: () => ScanSyncStatus.pending,
-    );
+    final isV2 =
+        json.containsKey('local_image_path') &&
+        json['location'] is Map<String, dynamic>;
+    if (!isV2) {
+      return _fromLegacyJson(json);
+    }
+
+    final statusRaw = json['status'] as String? ?? 'waitingForRecognition';
+    final status = _parseStatus(statusRaw);
+
+    final infoRaw = json['vehicle_info'];
+    final VehicleInfo? info;
+    if (infoRaw is Map<String, dynamic>) {
+      info = VehicleInfo.fromJson(infoRaw);
+    } else {
+      info = null;
+    }
+
     return VehicleScan(
       id: json['id'] as String,
-      imagePath: json['image_path'] as String,
-      latitude: (json['latitude'] as num).toDouble(),
-      longitude: (json['longitude'] as num).toDouble(),
-      capturedAt: DateTime.parse(json['captured_at'] as String),
-      syncStatus: status,
+      localImagePath: json['local_image_path'] as String,
+      remoteImageUrl: json['remote_image_url'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+      status: status,
+      location: ScanLocation.fromJson(
+        Map<String, dynamic>.from(json['location'] as Map),
+      ),
+      vehicleInfo: info,
+      isPublic: json['is_public'] as bool? ?? false,
+      recognitionError: json['recognition_error'] as String?,
+      pendingSync: json['pending_sync'] as bool? ?? true,
+    );
+  }
+
+  static VehicleScan _fromLegacyJson(Map<String, dynamic> json) {
+    final created = DateTime.parse(
+      (json['captured_at'] ?? json['created_at']) as String,
+    );
+    final lat =
+        (json['latitude'] as num?)?.toDouble() ??
+        ((json['location'] as Map?)?['latitude'] as num?)?.toDouble() ??
+        0.0;
+    final lng =
+        (json['longitude'] as num?)?.toDouble() ??
+        ((json['location'] as Map?)?['longitude'] as num?)?.toDouble() ??
+        0.0;
+    final path = (json['local_image_path'] ?? json['image_path']) as String;
+
+    return VehicleScan(
+      id: json['id'] as String,
+      localImagePath: path,
+      remoteImageUrl: null,
+      createdAt: created,
+      updatedAt: created,
+      status: VehicleScanStatus.waitingForRecognition,
+      location: ScanLocation(latitude: lat, longitude: lng),
+      vehicleInfo: null,
+      isPublic: false,
+      recognitionError: null,
+      pendingSync: true,
+    );
+  }
+
+  static VehicleScanStatus _parseStatus(String raw) {
+    return VehicleScanStatus.values.firstWhere(
+      (e) => e.name == raw,
+      orElse: () => VehicleScanStatus.waitingForRecognition,
     );
   }
 
   VehicleScan copyWith({
     String? id,
-    String? imagePath,
-    double? latitude,
-    double? longitude,
-    DateTime? capturedAt,
-    ScanSyncStatus? syncStatus,
+    String? localImagePath,
+    String? remoteImageUrl,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    VehicleScanStatus? status,
+    ScanLocation? location,
+    VehicleInfo? vehicleInfo,
+    bool? isPublic,
+    String? recognitionError,
+    bool? pendingSync,
   }) {
     return VehicleScan(
       id: id ?? this.id,
-      imagePath: imagePath ?? this.imagePath,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      capturedAt: capturedAt ?? this.capturedAt,
-      syncStatus: syncStatus ?? this.syncStatus,
+      localImagePath: localImagePath ?? this.localImagePath,
+      remoteImageUrl: remoteImageUrl ?? this.remoteImageUrl,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      status: status ?? this.status,
+      location: location ?? this.location,
+      vehicleInfo: vehicleInfo ?? this.vehicleInfo,
+      isPublic: isPublic ?? this.isPublic,
+      recognitionError: recognitionError ?? this.recognitionError,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 }

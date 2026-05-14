@@ -10,4 +10,7 @@ abstract final class AppRoutes {
   static const scanRelative = '/scan';
   static const historyRelative = '/history';
   static const settingsRelative = '/settings';
+
+  /// Pełnoekranowy widok rekordu skanu (poza shell).
+  static String vehicleScan(String scanId) => '/vehicle-scan/$scanId';
 }

@@ -3,66 +3,133 @@ import 'dart:async';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/location/device_location_service.dart';
+import '../../../core/location/current_position_reader.dart';
+import '../../../core/location/location_metadata_enricher.dart';
 import '../../../core/media/image_storage_service.dart';
 import '../../../core/remote/cloud_scan_sync_service.dart';
 import '../../../core/storage/scan_local_data_source.dart';
 import '../domain/scan_repository.dart';
 import '../domain/vehicle_analysis_service.dart';
 import '../domain/vehicle_scan.dart';
+import '../domain/vehicle_scan_status.dart';
+import '../domain/scan_location.dart';
 
 class ScanRepositoryImpl implements ScanRepository {
   ScanRepositoryImpl({
     required ScanLocalDataSource localDataSource,
-    required DeviceLocationService locationService,
+    required CurrentPositionReader positionReader,
     required ImageStorageService imageStorage,
     required CloudScanSyncService cloudSync,
     required VehicleAnalysisService analysisService,
+    required LocationMetadataEnricher locationEnricher,
   }) : _local = localDataSource,
-       _location = locationService,
+       _position = positionReader,
        _imageStorage = imageStorage,
        _cloudSync = cloudSync,
-       _analysis = analysisService;
+       _analysis = analysisService,
+       _locationEnricher = locationEnricher;
 
   final ScanLocalDataSource _local;
-  final DeviceLocationService _location;
+  final CurrentPositionReader _position;
   final ImageStorageService _imageStorage;
   final CloudScanSyncService _cloudSync;
   final VehicleAnalysisService _analysis;
+  final LocationMetadataEnricher _locationEnricher;
 
-  final _changed = StreamController<void>.broadcast();
+  final _changes = StreamController<void>.broadcast();
 
-  @override
-  Stream<void> get localScansChanged => _changed.stream;
-
-  void _notifyChanged() {
-    if (!_changed.isClosed) {
-      _changed.add(null);
+  void _emit() {
+    if (!_changes.isClosed) {
+      _changes.add(null);
     }
   }
 
   @override
-  Future<List<VehicleScan>> loadScansOrdered() async {
-    return _local.readAllOrdered();
+  Stream<List<VehicleScan>> watchScans() async* {
+    yield await getRecentScans(1 << 20);
+    await for (final _ in _changes.stream) {
+      yield await getRecentScans(1 << 20);
+    }
   }
 
   @override
-  Future<VehicleScan> createScanFromCameraImage(XFile file) async {
-    final position = await _location.getCurrentPosition();
-    final imagePath = await _imageStorage.persistCameraImage(file);
+  Future<List<VehicleScan>> getRecentScans(int limit) async {
+    final all = _local.readAllOrdered();
+    if (all.length <= limit) {
+      return all;
+    }
+    return all.sublist(0, limit);
+  }
 
-    final scan = VehicleScan(
-      id: const Uuid().v4(),
-      imagePath: imagePath,
-      latitude: position.latitude,
-      longitude: position.longitude,
-      capturedAt: DateTime.now().toUtc(),
-    );
+  @override
+  Future<VehicleScan?> getScan(String id) async => _local.readById(id);
 
-    await _local.upsert(scan);
-    await _cloudSync.enqueueForUpload(scan);
-    await _analysis.scheduleAnalysis(scan.id);
-    _notifyChanged();
-    return scan;
+  @override
+  Future<VehicleScan> createScan({required XFile capturedPhoto}) async {
+    final now = DateTime.now().toUtc();
+    final localPath = await _imageStorage.persistCameraImage(capturedPhoto);
+    try {
+      final position = await _position.getCurrentPosition();
+      final draft = ScanLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      final location = await _locationEnricher.enrich(draft);
+
+      final scan = VehicleScan(
+        id: const Uuid().v4(),
+        localImagePath: localPath,
+        createdAt: now,
+        updatedAt: now,
+        status: VehicleScanStatus.waitingForRecognition,
+        location: location,
+        pendingSync: true,
+      );
+
+      await _local.upsert(scan);
+      await _cloudSync.enqueueForUpload(scan);
+      await _analysis.scheduleAnalysis(scan.id);
+      _emit();
+      return scan;
+    } on Object catch (_) {
+      await _imageStorage.deleteIfExists(localPath);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> updateScan(VehicleScan scan) async {
+    final next = scan.copyWith(updatedAt: DateTime.now().toUtc());
+    await _local.upsert(next);
+    _emit();
+  }
+
+  @override
+  Future<void> deleteScan(String id) async {
+    final existing = await getScan(id);
+    if (existing == null) {
+      return;
+    }
+    await _imageStorage.deleteIfExists(existing.localImagePath);
+    await _local.delete(id);
+    _emit();
+  }
+
+  @override
+  Future<void> markAsPublic(String id) async {
+    final scan = await getScan(id);
+    if (scan == null) {
+      return;
+    }
+    await updateScan(scan.copyWith(isPublic: true));
+  }
+
+  @override
+  Future<void> markAsPrivate(String id) async {
+    final scan = await getScan(id);
+    if (scan == null) {
+      return;
+    }
+    await updateScan(scan.copyWith(isPublic: false));
   }
 }
