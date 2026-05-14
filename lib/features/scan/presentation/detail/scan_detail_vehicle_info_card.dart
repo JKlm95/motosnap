@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/locale/app_strings.dart';
 import '../../domain/vehicle_info.dart';
+import '../widgets/confidence_viz.dart';
 
 /// Karta pól pojazdu (AI lub efektywne po korekcie).
 class ScanDetailVehicleInfoCard extends StatelessWidget {
@@ -37,13 +38,13 @@ class ScanDetailVehicleInfoCard extends StatelessWidget {
                 s.fieldEnginesHint,
                 info.possibleEngines.join(', '),
               ),
-            _row(
-              context,
-              s.fieldConfidence,
-              info.confidence != null
-                  ? '${(info.confidence! * 100).toStringAsFixed(0)} %'
-                  : s.emDash,
-            ),
+            if (info.confidence != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ConfidenceViz(s: s, confidence: info.confidence!),
+              ),
+            if (info.confidence == null)
+              _row(context, s.fieldConfidence, s.emDash),
             if (info.shortDescription != null &&
                 info.shortDescription!.isNotEmpty) ...[
               const SizedBox(height: 10),

@@ -9,7 +9,7 @@
 ## Dlaczego warto zerknąć
 
 - **Przepływ „skan → historia”** działa w pełni offline: uprawnienia, zdjęcie, pozycja, reverse geocoding (best effort), zapis w **Hive** jako JSON.
-- **Przejście Hero** z miniatur w historii na pełnoekranowe zdjęcie w szczegółach; nagłówek photo-first i **panel szkła** z sekcjami (status, pojazd, lokalizacja, AI, prywatność, korekta, usuwanie).
+- **Przejście Hero** z miniatur w historii na pełnoekranowe zdjęcie w szczegółach; **wejście na trasę szczegółów** z lekkim fade/slide (`go_router` + `AppMotion`); nagłówek photo-first i **panel szkła** z sekcjami (status, pojazd, lokalizacja, AI, prywatność, korekta, usuwanie); po udanym AI **kaskadowe ujawnienie** pól pojazdu zamiast „wszystko naraz”.
 - **Architektura pod rozwój**: feature-first, repozytorium skanów z `watchScans()`, szczegóły rekordu, publiczność rekordu, usuwanie; **Firebase Auth + Firestore + Storage + Cloud Functions** (inicjalizacja z bezpiecznym fallbackiem), ręczna synchronizacja `pendingSync`, **analiza AI na żądanie** (Gemini tylko po stronie serwera).
 
 ---
@@ -19,7 +19,7 @@
 | Obszar | Co działa |
 |--------|-----------|
 | **Skan** | Prośba o kamerę + lokalizację, zdjęcie tylko z aparatu (bez galerii), zapis pliku i rekordu `waitingForRecognition` |
-| **Historia** | Lista lokalna, miniatura, data, miejsce (jeśli uda się z geokodowania), odświeżanie |
+| **Historia** | Lista z **filtrami i sortowaniem** (tylko klient), **swipe** (usuń / publiczność / ponów AI), lekkie animacje wejścia, **skeleton** przy pierwszym ładowaniu, odświeżanie pull-to-refresh |
 | **Szczegóły** | **Hero** z historii, duży nagłówek zdjęcia, panel szkła z **przeciąganiem** (`DraggableScrollableSheet`), status, lokalizacja, AI na żądanie, publiczność, korekta (`user_correction`), usuwanie |
 | **Ustawienia** | Motyw, konto (e-mail, wylogowanie), język (placeholder), status sync + **„Synchronizuj teraz”** (gdy Firebase działa) |
 

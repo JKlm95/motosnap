@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:motosnap/core/firebase/cloud_sync_availability.dart';
 import 'package:motosnap/core/location/current_position_reader.dart';
 import 'package:motosnap/core/location/passthrough_location_enricher.dart';
 import 'package:motosnap/core/media/image_storage_service.dart';
@@ -67,9 +68,16 @@ void main() {
         ],
         home: RepositoryProvider<ScanRepository>.value(
           value: repo,
-          child: BlocProvider(
-            create: (_) => HistoryCubit(repo),
-            child: const HistoryScreen(),
+          child: RepositoryProvider<CloudSyncAvailability>.value(
+            value: const CloudSyncAvailability(available: true),
+            child: BlocProvider(
+              create: (_) => HistoryCubit(
+                repo,
+                NoOpVehicleAnalysisService(),
+                uiLanguageCode: 'pl',
+              ),
+              child: const HistoryScreen(),
+            ),
           ),
         ),
       ),

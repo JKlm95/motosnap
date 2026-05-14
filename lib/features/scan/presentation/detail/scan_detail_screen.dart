@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../../../core/ui/glass/glass_surface.dart';
+import '../../../../core/ui/shimmer/moto_shimmer.dart';
 import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
@@ -34,7 +35,7 @@ class ScanDetailScreen extends StatelessWidget {
         return switch (state.phase) {
           ScanDetailPhase.loading => Scaffold(
             appBar: AppBar(title: Text(s.scanDetailsTitle)),
-            body: const Center(child: CircularProgressIndicator()),
+            body: const _ScanDetailLoadingPlaceholder(),
           ),
           ScanDetailPhase.notFound => Scaffold(
             appBar: AppBar(title: Text(s.scanDetailsTitle)),
@@ -49,12 +50,53 @@ class ScanDetailScreen extends StatelessWidget {
                 s: s,
                 scan: state.scan!,
                 busy: state.busy,
+                aiBusy: state.aiBusy,
+                vehicleRevealToken: state.vehicleRevealToken,
                 errorMessage: state.errorMessage,
               ),
             ),
           ),
         };
       },
+    );
+  }
+}
+
+class _ScanDetailLoadingPlaceholder extends StatelessWidget {
+  const _ScanDetailLoadingPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return MotoShimmer(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          children: [
+            Expanded(
+              flex: 5,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              flex: 6,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -161,12 +203,16 @@ class _DetailBody extends StatelessWidget {
     required this.s,
     required this.scan,
     required this.busy,
+    required this.aiBusy,
+    required this.vehicleRevealToken,
     required this.errorMessage,
   });
 
   final AppStrings s;
   final VehicleScan scan;
   final bool busy;
+  final ScanDetailAiBusy aiBusy;
+  final int vehicleRevealToken;
   final String? errorMessage;
 
   @override
@@ -183,6 +229,11 @@ class _DetailBody extends StatelessWidget {
         : initialSheet.clamp(0.42, 0.68);
 
     final synced = _isSyncedToCloud(scan);
+    final showAiSkeleton =
+        busy &&
+        aiBusy == ScanDetailAiBusy.yes &&
+        (scan.status == VehicleScanStatus.waitingForRecognition ||
+            scan.status == VehicleScanStatus.failed);
     final canAnalyze =
         scan.status == VehicleScanStatus.waitingForRecognition && synced;
     final localeLang = Localizations.localeOf(context).languageCode;
@@ -244,6 +295,8 @@ class _DetailBody extends StatelessWidget {
                         scan: scan,
                         s: s,
                         busy: busy,
+                        showAiSkeleton: showAiSkeleton,
+                        vehicleRevealToken: vehicleRevealToken,
                         errorMessage: errorMessage,
                         synced: synced,
                         canAnalyze: canAnalyze,
@@ -327,7 +380,7 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
         ),
-        if (busy)
+        if (busy && !showAiSkeleton)
           const Positioned.fill(
             child: IgnorePointer(
               child: Center(child: CircularProgressIndicator()),

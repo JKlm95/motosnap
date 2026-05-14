@@ -5,6 +5,7 @@ import '../../domain/scan_repository.dart';
 import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_analysis_exception.dart';
 import '../../domain/vehicle_analysis_service.dart';
+import '../../domain/vehicle_scan_status.dart';
 import 'scan_detail_state.dart';
 
 class ScanDetailCubit extends Cubit<ScanDetailState> {
@@ -33,18 +34,30 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
     emit(ScanDetailState(phase: ScanDetailPhase.ready, scan: scan));
   }
 
-  Future<void> _emitReadyFromRepo({String? errorMessage}) async {
+  Future<void> _reloadReady({
+    String? errorMessage,
+    bool bumpRevealAfterAi = false,
+  }) async {
+    final prevToken = state.vehicleRevealToken;
     final scan = await _repository.getScan(scanId);
     if (scan == null) {
       emit(const ScanDetailState(phase: ScanDetailPhase.notFound));
       return;
+    }
+    var token = prevToken;
+    if (bumpRevealAfterAi &&
+        scan.status == VehicleScanStatus.recognized &&
+        scan.effectiveVehicleInfo != null) {
+      token = prevToken + 1;
     }
     emit(
       ScanDetailState(
         phase: ScanDetailPhase.ready,
         scan: scan,
         busy: false,
+        aiBusy: ScanDetailAiBusy.no,
         errorMessage: errorMessage,
+        vehicleRevealToken: token,
       ),
     );
   }
@@ -54,21 +67,22 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
     if (current == null) {
       return;
     }
+    final wasWaiting =
+        current.status == VehicleScanStatus.waitingForRecognition;
     emit(
-      ScanDetailState(
-        phase: ScanDetailPhase.ready,
-        scan: current,
+      state.copyWith(
         busy: true,
-        errorMessage: null,
+        aiBusy: ScanDetailAiBusy.yes,
+        clearErrorMessage: true,
       ),
     );
     try {
       await _analysis.analyzeScan(scanId: scanId, languageCode: languageCode);
-      await _emitReadyFromRepo();
+      await _reloadReady(bumpRevealAfterAi: wasWaiting);
     } on VehicleAnalysisException catch (e) {
-      await _emitReadyFromRepo(errorMessage: _s.aiAnalysisUserMessage(e));
+      await _reloadReady(errorMessage: _s.aiAnalysisUserMessage(e));
     } on Object catch (e) {
-      await _emitReadyFromRepo(errorMessage: _s.aiAnalysisUserMessage(e));
+      await _reloadReady(errorMessage: _s.aiAnalysisUserMessage(e));
     }
   }
 
@@ -77,9 +91,7 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
     if (current == null) {
       return;
     }
-    emit(
-      ScanDetailState(phase: ScanDetailPhase.ready, scan: current, busy: true),
-    );
+    emit(state.copyWith(busy: true, aiBusy: ScanDetailAiBusy.no));
     try {
       if (current.isPublic) {
         await _repository.markAsPrivate(current.id);
@@ -87,15 +99,24 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
         await _repository.markAsPublic(current.id);
       }
       final next = await _repository.getScan(current.id);
+      if (next == null) {
+        emit(
+          state.copyWith(
+            busy: false,
+            aiBusy: ScanDetailAiBusy.no,
+            errorMessage: _s.errorOperationFailed,
+          ),
+        );
+        return;
+      }
       emit(
-        ScanDetailState(phase: ScanDetailPhase.ready, scan: next, busy: false),
+        state.copyWith(scan: next, busy: false, aiBusy: ScanDetailAiBusy.no),
       );
     } on Object catch (_) {
       emit(
-        ScanDetailState(
-          phase: ScanDetailPhase.ready,
-          scan: current,
+        state.copyWith(
           busy: false,
+          aiBusy: ScanDetailAiBusy.no,
           errorMessage: _s.errorOperationFailed,
         ),
       );
@@ -107,18 +128,15 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
     if (current == null) {
       return;
     }
-    emit(
-      ScanDetailState(phase: ScanDetailPhase.ready, scan: current, busy: true),
-    );
+    emit(state.copyWith(busy: true, aiBusy: ScanDetailAiBusy.no));
     try {
       await _repository.deleteScan(scanId);
       emit(const ScanDetailState(phase: ScanDetailPhase.removed));
     } on Object catch (_) {
       emit(
-        ScanDetailState(
-          phase: ScanDetailPhase.ready,
-          scan: current,
+        state.copyWith(
           busy: false,
+          aiBusy: ScanDetailAiBusy.no,
           errorMessage: _s.errorDeleteFailed,
         ),
       );
@@ -131,29 +149,21 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
       return;
     }
     emit(
-      ScanDetailState(
-        phase: ScanDetailPhase.ready,
-        scan: current,
+      state.copyWith(
         busy: true,
-        errorMessage: null,
+        aiBusy: ScanDetailAiBusy.no,
+        clearErrorMessage: true,
       ),
     );
     try {
       await _repository.updateUserCorrection(scanId, correction);
-      await _emitReadyFromRepo();
+      await _reloadReady();
     } on Object catch (_) {
-      await _emitReadyFromRepo(errorMessage: _s.errorSaveCorrectionFailed);
+      await _reloadReady(errorMessage: _s.errorSaveCorrectionFailed);
     }
   }
 
   void clearError() {
-    emit(
-      ScanDetailState(
-        phase: state.phase,
-        scan: state.scan,
-        busy: state.busy,
-        errorMessage: null,
-      ),
-    );
+    emit(state.copyWith(clearErrorMessage: true));
   }
 }

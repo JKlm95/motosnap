@@ -54,6 +54,8 @@ void main() {
             scan: scan,
             s: s,
             busy: false,
+            showAiSkeleton: false,
+            vehicleRevealToken: 0,
             errorMessage: null,
             synced: synced,
             canAnalyze: canAnalyze,

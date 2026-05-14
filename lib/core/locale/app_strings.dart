@@ -182,6 +182,40 @@ class AppStrings {
 
   String get historyPublicBadge => _pl ? 'Publiczny' : 'Public';
 
+  String get historyFilterAll => _pl ? 'Wszystkie' : 'All';
+  String get historyFilterRecognized => _pl ? 'Rozpoznane' : 'Recognized';
+  String get historyFilterWaiting => _pl ? 'Oczekujące' : 'Waiting';
+  String get historyFilterCorrected => _pl ? 'Poprawione' : 'Corrected';
+  String get historyFilterPublic => _pl ? 'Publiczne' : 'Public';
+
+  String get historySortNewest => _pl ? 'Najnowsze' : 'Newest';
+  String get historySortOldest => _pl ? 'Najstarsze' : 'Oldest';
+  String get historySortConfidence => _pl ? 'Pewność' : 'Confidence';
+  String get historySortBrand => _pl ? 'Marka' : 'Brand';
+  String get historySortMenuTitle => _pl ? 'Sortowanie' : 'Sort by';
+
+  String get historyLoadError =>
+      _pl ? 'Nie udało się wczytać historii.' : 'Could not load history.';
+  String get historyRefreshError =>
+      _pl ? 'Nie udało się odświeżyć listy.' : 'Could not refresh the list.';
+  String get historyFilterEmpty => _pl
+      ? 'Brak wyników dla wybranego filtra.'
+      : 'No scans match this filter.';
+  String get historyGoToScanCta => _pl ? 'Przejdź do skanu' : 'Go to Scan';
+
+  String get historyOfflineHint => _pl
+      ? 'Bez pełnej chmury skany zostają tylko na tym urządzeniu.'
+      : 'Without full cloud setup, scans stay on this device.';
+
+  String get historySwipeDelete => _pl ? 'Usuń' : 'Delete';
+  String get historySwipePublic => _pl ? 'Publiczny' : 'Make public';
+  String get historySwipePrivate => _pl ? 'Prywatny' : 'Make private';
+  String get historySwipeRetryAi => _pl ? 'Ponów AI' : 'Retry AI';
+
+  String get confidenceHigh => _pl ? 'Wysoka pewność' : 'High confidence';
+  String get confidenceMedium => _pl ? 'Średnia pewność' : 'Medium confidence';
+  String get confidenceLow => _pl ? 'Niska pewność' : 'Low confidence';
+
   // --- Settings / sync ---
   String get settingsTitle => _pl ? 'Ustawienia' : 'Settings';
   String get settingsAccount => _pl ? 'Konto' : 'Account';

@@ -4,7 +4,9 @@ import '../../../../core/locale/app_strings.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
 import '../widgets/scan_status_badge.dart';
+import 'scan_detail_ai_skeleton.dart';
 import 'scan_detail_vehicle_info_card.dart';
+import 'scan_detail_vehicle_reveal_card.dart';
 
 /// Treść przewijanego panelu szczegółów skanu (sekcje + akcje).
 class ScanDetailSheetContent extends StatelessWidget {
@@ -12,6 +14,8 @@ class ScanDetailSheetContent extends StatelessWidget {
     required this.scan,
     required this.s,
     required this.busy,
+    required this.showAiSkeleton,
+    required this.vehicleRevealToken,
     required this.errorMessage,
     required this.synced,
     required this.canAnalyze,
@@ -27,6 +31,8 @@ class ScanDetailSheetContent extends StatelessWidget {
   final VehicleScan scan;
   final AppStrings s;
   final bool busy;
+  final bool showAiSkeleton;
+  final int vehicleRevealToken;
   final String? errorMessage;
   final bool synced;
   final bool canAnalyze;
@@ -45,10 +51,13 @@ class ScanDetailSheetContent extends StatelessWidget {
         '${scan.location.latitude.toStringAsFixed(4)}, '
             '${scan.location.longitude.toStringAsFixed(4)}';
 
-    final showVehicle =
+    final showVehicleData =
         (scan.status == VehicleScanStatus.recognized ||
             scan.status == VehicleScanStatus.failed) &&
         scan.effectiveVehicleInfo != null;
+
+    final useReveal =
+        vehicleRevealToken > 0 && showVehicleData && !showAiSkeleton;
 
     return ListView(
       controller: scrollController,
@@ -91,13 +100,28 @@ class ScanDetailSheetContent extends StatelessWidget {
           TextButton(onPressed: onClearError, child: Text(s.closeMessage)),
         ],
         const SizedBox(height: 20),
-        if (showVehicle) ...[
+        if (showAiSkeleton) ...[
           Text(
             s.vehicleInformationSection,
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
-          ScanDetailVehicleInfoCard(s: s, info: scan.effectiveVehicleInfo!),
+          const ScanDetailAiResultSkeleton(),
+          const SizedBox(height: 20),
+        ] else if (showVehicleData) ...[
+          Text(
+            s.vehicleInformationSection,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          if (useReveal)
+            ScanDetailVehicleRevealCard(
+              s: s,
+              info: scan.effectiveVehicleInfo!,
+              revealToken: vehicleRevealToken,
+            )
+          else
+            ScanDetailVehicleInfoCard(s: s, info: scan.effectiveVehicleInfo!),
           if (scan.userCorrection != null && scan.vehicleInfo != null) ...[
             const SizedBox(height: 8),
             ExpansionTile(
@@ -137,7 +161,7 @@ class ScanDetailSheetContent extends StatelessWidget {
               ),
             ),
           ),
-        if (canAnalyze) ...[
+        if (canAnalyze && !showAiSkeleton) ...[
           Text(s.analyzeWithAi, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           FilledButton.icon(
@@ -159,7 +183,7 @@ class ScanDetailSheetContent extends StatelessWidget {
             s.recognitionFailedNoDetails,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (synced) ...[
+          if (synced && !showAiSkeleton) ...[
             const SizedBox(height: 12),
             FilledButton.tonal(
               onPressed: busy ? null : onAnalyze,

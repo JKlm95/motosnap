@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/media/camera_capture_service.dart';
+import '../../core/ui/app_motion.dart';
 import '../../core/permissions/scan_permissions_service.dart';
 import '../../features/auth/domain/auth_repository.dart';
 import '../../features/auth/presentation/forgot_password/cubit/forgot_password_cubit.dart';
@@ -72,16 +73,39 @@ abstract final class AppRouter {
         ),
         GoRoute(
           path: '/vehicle-scan/:scanId',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final scanId = state.pathParameters['scanId']!;
-            return BlocProvider(
-              create: (_) => ScanDetailCubit(
-                context.read<ScanRepository>(),
-                context.read<VehicleAnalysisService>(),
-                scanId,
-                uiLanguageCode: Localizations.localeOf(context).languageCode,
-              )..load(),
-              child: ScanDetailScreen(scanId: scanId),
+            return CustomTransitionPage<void>(
+              key: state.pageKey,
+              transitionDuration: AppMotion.normal,
+              reverseTransitionDuration: AppMotion.fast,
+              child: BlocProvider(
+                create: (_) => ScanDetailCubit(
+                  context.read<ScanRepository>(),
+                  context.read<VehicleAnalysisService>(),
+                  scanId,
+                  uiLanguageCode: Localizations.localeOf(context).languageCode,
+                )..load(),
+                child: ScanDetailScreen(scanId: scanId),
+              ),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                    final curved = CurvedAnimation(
+                      parent: animation,
+                      curve: AppMotion.emphasizedDecelerate,
+                      reverseCurve: AppMotion.standard,
+                    );
+                    return FadeTransition(
+                      opacity: curved,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.03, 0),
+                          end: Offset.zero,
+                        ).animate(curved),
+                        child: child,
+                      ),
+                    );
+                  },
             );
           },
         ),
@@ -110,7 +134,13 @@ abstract final class AppRouter {
                 GoRoute(
                   path: AppRoutes.historyRelative,
                   builder: (context, state) => BlocProvider(
-                    create: (_) => HistoryCubit(context.read<ScanRepository>()),
+                    create: (_) => HistoryCubit(
+                      context.read<ScanRepository>(),
+                      context.read<VehicleAnalysisService>(),
+                      uiLanguageCode: Localizations.localeOf(
+                        context,
+                      ).languageCode,
+                    ),
                     child: const HistoryScreen(),
                   ),
                 ),
