@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_info.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
+import '../widgets/scan_status_badge.dart';
 import 'scan_detail_cubit.dart';
 import 'scan_detail_state.dart';
 import 'vehicle_user_correction_sheet.dart';
@@ -38,11 +40,13 @@ class ScanDetailScreen extends StatelessWidget {
             ),
             ScanDetailPhase.notFound => _NotFound(s: s),
             ScanDetailPhase.removed => const SizedBox.shrink(),
-            ScanDetailPhase.ready => _DetailBody(
-              s: s,
-              scan: state.scan!,
-              busy: state.busy,
-              errorMessage: state.errorMessage,
+            ScanDetailPhase.ready => _ScanDetailHapticListener(
+              child: _DetailBody(
+                s: s,
+                scan: state.scan!,
+                busy: state.busy,
+                errorMessage: state.errorMessage,
+              ),
             ),
           },
         );
@@ -70,6 +74,75 @@ class _NotFound extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ScanDetailHapticListener extends StatefulWidget {
+  const _ScanDetailHapticListener({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ScanDetailHapticListener> createState() =>
+      _ScanDetailHapticListenerState();
+}
+
+class _ScanDetailHapticListenerState extends State<_ScanDetailHapticListener> {
+  ScanDetailState? _prevForHaptic;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<ScanDetailCubit, ScanDetailState>(
+      listenWhen: (prev, next) {
+        if (!prev.busy || next.busy || next.phase != ScanDetailPhase.ready) {
+          return false;
+        }
+        if (prev.scan == null || next.scan == null) {
+          return false;
+        }
+        final p = prev.scan!;
+        final n = next.scan!;
+        var fire = false;
+        if (next.errorMessage != null) {
+          fire = true;
+        } else if (p.status == VehicleScanStatus.waitingForRecognition &&
+            (n.status == VehicleScanStatus.recognized ||
+                n.status == VehicleScanStatus.failed)) {
+          fire = true;
+        } else if (p.userCorrection?.correctedAt !=
+                n.userCorrection?.correctedAt &&
+            n.userCorrection != null) {
+          fire = true;
+        }
+        if (fire) {
+          _prevForHaptic = prev;
+        }
+        return fire;
+      },
+      listener: (context, next) {
+        final prev = _prevForHaptic;
+        _prevForHaptic = null;
+        if (prev?.scan == null || next.scan == null) {
+          return;
+        }
+        if (next.errorMessage != null) {
+          AppHaptics.error();
+          return;
+        }
+        final p = prev!.scan!;
+        final n = next.scan!;
+        if (p.status == VehicleScanStatus.waitingForRecognition) {
+          if (n.status == VehicleScanStatus.recognized) {
+            AppHaptics.success();
+          } else if (n.status == VehicleScanStatus.failed) {
+            AppHaptics.warning();
+          }
+          return;
+        }
+        AppHaptics.success();
+      },
+      child: widget.child,
     );
   }
 }
@@ -127,11 +200,18 @@ class _DetailBody extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              s.scanStatus(scan.status),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                ScanStatusBadge(
+                  status: scan.status,
+                  label: s.scanStatus(scan.status),
+                ),
+                if (scan.userCorrection != null)
+                  UserCorrectedBadge(label: s.correctedByUserLabel),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -193,17 +273,6 @@ class _DetailBody extends StatelessWidget {
                     scan.status == VehicleScanStatus.failed) &&
                 scan.effectiveVehicleInfo != null) ...[
               const SizedBox(height: 20),
-              if (scan.userCorrection != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    s.correctedByUserLabel,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
               Text(
                 s.vehicleInformationSection,
                 style: Theme.of(context).textTheme.titleSmall,

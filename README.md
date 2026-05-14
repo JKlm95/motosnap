@@ -9,7 +9,7 @@
 ## Dlaczego warto zerknąć
 
 - **Przepływ „skan → historia”** działa w pełni offline: uprawnienia, zdjęcie, pozycja, reverse geocoding (best effort), zapis w **Hive** jako JSON.
-- **UX w stylu iOS**: stonowany motyw jasny/ciemny, duży przycisk skanu, czytelne karty sukcesu/błędu, lista historii z miniaturą i statusem; **teksty PL/EN** wg języka systemu ([`AppStrings`](lib/core/locale/app_strings.dart)).
+- **UX w stylu iOS**: stonowany motyw jasny/ciemny, **pływająca szklana nawigacja**, lekkie animacje i haptyka tam, gdzie ma to sens; czytelne karty sukcesu/błędu, lista historii z miniaturą i statusem; **teksty PL/EN** wg języka systemu ([`AppStrings`](lib/core/locale/app_strings.dart)).
 - **Architektura pod rozwój**: feature-first, repozytorium skanów z `watchScans()`, szczegóły rekordu, publiczność rekordu, usuwanie; **Firebase Auth + Firestore + Storage + Cloud Functions** (inicjalizacja z bezpiecznym fallbackiem), ręczna synchronizacja `pendingSync`, **analiza AI na żądanie** (Gemini tylko po stronie serwera).
 
 ---

@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/app_routes.dart';
+import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/firebase/cloud_sync_availability.dart';
+import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../../auth/domain/auth_repository.dart';
 import '../cubit/settings_cubit.dart';
@@ -19,6 +21,7 @@ class SettingsScreen extends StatelessWidget {
     final s = AppStrings.of(context);
     final auth = context.read<AuthRepository>();
     final email = auth.currentUserEmail ?? '—';
+    final bottomPad = MainShellLayout.paddingOf(context);
     final cloudOk = context.read<CloudSyncAvailability>().available;
 
     return Scaffold(
@@ -26,7 +29,7 @@ class SettingsScreen extends StatelessWidget {
       body: BlocBuilder<SettingsCubit, SettingsState>(
         builder: (context, state) {
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad),
             children: [
               Text(
                 s.settingsAccount,
@@ -86,6 +89,15 @@ class SettingsScreen extends StatelessWidget {
                           if (syncState.status == ManualSyncStatus.done &&
                               syncState.summary != null) {
                             final sum = syncState.summary!;
+                            if (sum.failed == 0 && sum.uploaded > 0) {
+                              AppHaptics.success();
+                            } else if (sum.uploaded == 0 && sum.failed > 0) {
+                              AppHaptics.error();
+                            } else if (sum.failed > 0) {
+                              AppHaptics.warning();
+                            } else {
+                              AppHaptics.success();
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -96,6 +108,7 @@ class SettingsScreen extends StatelessWidget {
                           } else if (syncState.status ==
                                   ManualSyncStatus.error &&
                               syncState.userError != null) {
+                            AppHaptics.error();
                             final msg = switch (syncState.userError!) {
                               SyncUserError.cloudDisabled =>
                                 loc.errorSyncCloudUnavailable,

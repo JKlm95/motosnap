@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/locale/app_strings.dart';
+import '../shell/glass_shell_bottom_nav.dart';
+import '../shell/main_shell_layout.dart';
 
 class MainShellScaffold extends StatelessWidget {
   const MainShellScaffold({required this.navigationShell, super.key});
@@ -11,35 +13,26 @@ class MainShellScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppStrings.of(context);
-    final destinations = [
-      NavigationDestination(
-        icon: const Icon(Icons.photo_camera_outlined),
-        selectedIcon: const Icon(Icons.photo_camera),
-        label: s.scanTabTitle,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.history_outlined),
-        selectedIcon: const Icon(Icons.history),
-        label: s.historyTitle,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.tune_outlined),
-        selectedIcon: const Icon(Icons.tune),
-        label: s.settingsTitle,
-      ),
-    ];
+    final bottomPad =
+        MediaQuery.paddingOf(context).bottom + kShellGlassNavContentPadding;
 
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        destinations: destinations,
-        onDestinationSelected: (index) {
-          navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        },
+    return MainShellLayout(
+      bottomContentPadding: bottomPad,
+      child: Scaffold(
+        extendBody: true,
+        body: navigationShell,
+        bottomNavigationBar: GlassShellBottomNav(
+          currentBranchIndex: navigationShell.currentIndex,
+          historyLabel: s.historyTitle,
+          scanLabel: s.scanTabTitle,
+          settingsLabel: s.settingsTitle,
+          onBranchSelected: (index) {
+            navigationShell.goBranch(
+              index,
+              initialLocation: index == navigationShell.currentIndex,
+            );
+          },
+        ),
       ),
     );
   }

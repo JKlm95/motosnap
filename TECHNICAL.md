@@ -12,6 +12,16 @@ Opisuje architekturę, przepływ danych, modele, repozytoria, routing oraz znane
 - **`lib/core/`** — usługi infrastrukturalne: GPS, geokodowanie, aparat, zapis plików, uprawnienia, Hive, **etykiety PL/EN MVP** ([`AppStrings`](lib/core/locale/app_strings.dart)), abstrakcja kolejki chmury (`CloudScanSyncService`), wynik ręcznego sync (`SyncSummary`), init Firebase (`FirebaseInitializer`, `CloudSyncAvailability`).
 - **`lib/features/`** — `splash` (hydracja sesji), `auth` (Firebase / offline), `scan` (domena, repozytorium, sync do Firestore+Storage, UI), `history`, `settings`.
 
+### UI premium (glass, nawigacja, haptyka)
+
+- **`lib/core/ui/app_motion.dart`** — wspólne `Duration` i krzywe (`AppMotion`) dla animacji lekkich na słabszych urządzeniach.
+- **`lib/core/haptics/app_haptics.dart`** — `AppHaptics` (wrapper na `HapticFeedback` w `try/catch`).
+- **`lib/core/ui/glass/`** — `GlassSurface` (`BackdropFilter` + półprzezroczyste tło; `blurSigma <= 0` pomija blur), `GlassCard`, `GlassBottomBar` (pill), opcjonalnie `GlassStatusBadge` (domyślnie bez blur), `GlassIconButton`.
+- **`lib/app/shell/`** — `MainShellLayout` / `kShellGlassNavContentPadding` (dolny margines treści pod pływającą nawigacją), `GlassShellBottomNav` (trzy gałęzie shell: skan środek, historia, ustawienia; etykiety z `AppStrings`).
+- **`lib/features/scan/presentation/widgets/scan_status_badge.dart`** — plakietki statusu skanu i „poprawione przez użytkownika” **bez** blur (bezpieczne w przewijanych listach).
+
+Zasady: blur tylko tam, gdzie ma sens (nawigacja, pojedyncze karty), nie na każdym wierszu listy. Szczegóły haptyki i wydajności `BackdropFilter`: patrz sekcja poniżej (Kompromisy).
+
 Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach core; widgety/Cubit ograniczają się do stanu UI i wywołań repozytorium.
 
 ---
@@ -71,7 +81,7 @@ Metody:
 
 - **Redirect auth:** `AuthRouteResolution.redirect` — czysta funkcja (testy w `test/auth_route_resolution_test.dart`). Niezalogowany użytkownik na trasach shell (`/scan`, `/history`, `/settings`) lub `/vehicle-scan/...` jest kierowany na `/auth/login`. Zalogowany na `/auth/*` — na `/scan`. Splash (`/splash`) jest wyłączony z pętli: redirect zwraca `null`, a `SplashCubit` po krótkim opóźnieniu i pierwszym zdarzeniu `watchSession()` wykonuje `context.go` na login lub shell.
 - **Odświeżanie:** `RouterRefreshBridge` nasłuchuje `AuthRepository.watchSession()` i podpięty jest do `GoRouter.refreshListenable` — po loginie/logoucie router przelicza redirect bez ręcznego „haka” w każdym ekranie.
-- Shell: `/scan`, `/history`, `/settings` (`StatefulShellRoute.indexedStack`).
+- Shell: `/scan`, `/history`, `/settings` (`StatefulShellRoute.indexedStack`) — dolny pasek: [`GlassShellBottomNav`](lib/app/shell/glass_shell_bottom_nav.dart) + [`MainShellLayout`](lib/app/shell/main_shell_layout.dart) (dolny padding treści).
 - Poza shellem: `/splash`, `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/vehicle-scan/:scanId` — odpowiednie `BlocProvider` w builderach tras.
 - `AppRoutes.vehicleScan(id)` buduje ścieżkę.
 
@@ -220,5 +230,7 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 ## Kompromisy
 
 - Reverse geocoding może zawieść (brak sieci, limity API platformy) — UI pokazuje współrzędne jako fallback.
+- **`BackdropFilter` (glass):** kilka stałych warstw (np. pływająca nawigacja) jest akceptowalne kosztem wydajności; **nie** stosować blur na każdym wierszu przewijanej listy — spadek FPS na starszych Androidach. Przy `blurSigma == 0` `GlassSurface` używa tylko półprzezroczystego tła (tańszy fallback).
+- **Haptyka:** `AppHaptics` opiera się na `HapticFeedback`; na emulatorze lub urządzeniu bez silnika efekt bywa pusty — to normalne, UI nie powinno tego wymagać.
 - `ScanPermissionsService` tworzony inline w `AppRouter` dla zakładki Skan (bez globalnego DI) — akceptowalne na MVP; przy rozroście przenieść do `RepositoryProvider` / injectora.
 - **Reguły Firestore vs pełny model:** klient nadal może w teorii wysłać w merge pola spoza listy zabronionych (np. przyszłe pola serwerowe o innych nazwach); trzymać spójność payloadu w [`FirebaseCloudSyncService`](lib/features/scan/data/firebase_cloud_sync_service.dart). Dokument nadrzędny `users/{uid}` ma szerokie `write` — jeśli kiedyś profil będzie edytowany z klienta, rozważyć węższe reguły.

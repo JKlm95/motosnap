@@ -6,9 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/router/app_routes.dart';
+import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../../scan/domain/vehicle_scan.dart';
-import '../../../scan/domain/vehicle_scan_status.dart';
+import '../../../scan/presentation/widgets/scan_status_badge.dart';
 import '../cubit/history_cubit.dart';
 import '../cubit/history_state.dart';
 
@@ -39,6 +40,7 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppStrings.of(context);
+    final bottomPad = MainShellLayout.paddingOf(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(s.historyTitle),
@@ -64,7 +66,7 @@ class HistoryScreen extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () => context.read<HistoryCubit>().refresh(),
             child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad),
               itemCount: state.scans.length,
               separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
@@ -199,7 +201,14 @@ class _ScanTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  _StatusChip(s: s, status: scan.status),
+                  ScanStatusBadge(
+                    status: scan.status,
+                    label: s.scanStatus(scan.status),
+                  ),
+                  if (scan.userCorrection != null) ...[
+                    const SizedBox(height: 6),
+                    UserCorrectedBadge(label: s.correctedByUserLabel),
+                  ],
                   if (scan.isPublic)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -213,43 +222,6 @@ class _ScanTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.s, required this.status});
-
-  final AppStrings s;
-  final VehicleScanStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      VehicleScanStatus.waitingForRecognition => Theme.of(
-        context,
-      ).colorScheme.secondaryContainer,
-      VehicleScanStatus.recognized => Theme.of(
-        context,
-      ).colorScheme.primaryContainer,
-      VehicleScanStatus.failed => Theme.of(context).colorScheme.errorContainer,
-      VehicleScanStatus.draft => Theme.of(
-        context,
-      ).colorScheme.surfaceContainerHigh,
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        s.scanStatus(status),
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
