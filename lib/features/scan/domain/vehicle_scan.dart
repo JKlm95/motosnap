@@ -1,4 +1,5 @@
 import 'scan_location.dart';
+import 'user_vehicle_correction.dart';
 import 'vehicle_info.dart';
 import 'vehicle_scan_status.dart';
 
@@ -15,6 +16,8 @@ class VehicleScan {
     required this.location,
     this.remoteImageUrl,
     this.vehicleInfo,
+    this.userCorrection,
+    this.recognizedAt,
     this.isPublic = false,
     this.recognitionError,
     this.pendingSync = true,
@@ -28,7 +31,16 @@ class VehicleScan {
   final DateTime updatedAt;
   final VehicleScanStatus status;
   final ScanLocation location;
+
+  /// Oryginalny wynik AI / backendu (Cloud Function). Nie nadpisywać korektą użytkownika.
   final VehicleInfo? vehicleInfo;
+
+  /// Osobna korekta użytkownika (`user_correction` w Firestore).
+  final UserVehicleCorrection? userCorrection;
+
+  /// Czas zakończenia rozpoznania AI (lokalnie lub zsynchronizowany z Firestore).
+  final DateTime? recognizedAt;
+
   final bool isPublic;
   final String? recognitionError;
   final bool pendingSync;
@@ -36,9 +48,18 @@ class VehicleScan {
   /// Ostatni błąd synchronizacji z chmurą (nie mylić z błędem rozpoznania AI).
   final String? syncLastError;
 
+  /// Widok efektywny: korekta użytkownika nadpisuje prezentację, ale [vehicleInfo] zostaje.
+  VehicleInfo? get effectiveVehicleInfo {
+    final c = userCorrection;
+    if (c != null) {
+      return c.toEffectiveVehicleInfo(aiBaseline: vehicleInfo);
+    }
+    return vehicleInfo;
+  }
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'schema_version': 3,
+      'schema_version': 4,
       'id': id,
       'local_image_path': localImagePath,
       'remote_image_url': remoteImageUrl,
@@ -47,6 +68,8 @@ class VehicleScan {
       'status': status.name,
       'location': location.toJson(),
       'vehicle_info': vehicleInfo?.toJson(),
+      'user_correction': userCorrection?.toJson(),
+      'recognized_at': recognizedAt?.toIso8601String(),
       'is_public': isPublic,
       'recognition_error': recognitionError,
       'pending_sync': pendingSync,
@@ -73,6 +96,21 @@ class VehicleScan {
       info = null;
     }
 
+    final ucRaw = json['user_correction'];
+    final UserVehicleCorrection? userCorrection;
+    if (ucRaw is Map<String, dynamic>) {
+      userCorrection = UserVehicleCorrection.fromJson(
+        Map<String, dynamic>.from(ucRaw),
+      );
+    } else {
+      userCorrection = null;
+    }
+
+    final raRaw = json['recognized_at'] as String?;
+    final DateTime? recognizedAt = raRaw != null
+        ? DateTime.parse(raRaw).toUtc()
+        : null;
+
     return VehicleScan(
       id: json['id'] as String,
       localImagePath: json['local_image_path'] as String,
@@ -84,6 +122,8 @@ class VehicleScan {
         Map<String, dynamic>.from(json['location'] as Map),
       ),
       vehicleInfo: info,
+      userCorrection: userCorrection,
+      recognizedAt: recognizedAt,
       isPublic: json['is_public'] as bool? ?? false,
       recognitionError: json['recognition_error'] as String?,
       pendingSync: json['pending_sync'] as bool? ?? true,
@@ -114,6 +154,8 @@ class VehicleScan {
       status: VehicleScanStatus.waitingForRecognition,
       location: ScanLocation(latitude: lat, longitude: lng),
       vehicleInfo: null,
+      userCorrection: null,
+      recognizedAt: null,
       isPublic: false,
       recognitionError: null,
       pendingSync: true,
@@ -135,13 +177,20 @@ class VehicleScan {
     DateTime? createdAt,
     DateTime? updatedAt,
     VehicleScanStatus? status,
+    bool updateStatus = false,
     ScanLocation? location,
     VehicleInfo? vehicleInfo,
+    bool updateVehicleInfo = false,
+    UserVehicleCorrection? userCorrection,
+    bool updateUserCorrection = false,
     bool? isPublic,
     String? recognitionError,
+    bool updateRecognitionError = false,
     bool? pendingSync,
     String? syncLastError,
     bool updateSyncLastError = false,
+    DateTime? recognizedAt,
+    bool updateRecognizedAt = false,
   }) {
     return VehicleScan(
       id: id ?? this.id,
@@ -149,13 +198,19 @@ class VehicleScan {
       remoteImageUrl: remoteImageUrl ?? this.remoteImageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      status: status ?? this.status,
+      status: updateStatus ? (status ?? this.status) : this.status,
       location: location ?? this.location,
-      vehicleInfo: vehicleInfo ?? this.vehicleInfo,
+      vehicleInfo: updateVehicleInfo ? vehicleInfo : this.vehicleInfo,
+      userCorrection: updateUserCorrection
+          ? userCorrection
+          : this.userCorrection,
       isPublic: isPublic ?? this.isPublic,
-      recognitionError: recognitionError ?? this.recognitionError,
+      recognitionError: updateRecognitionError
+          ? recognitionError
+          : this.recognitionError,
       pendingSync: pendingSync ?? this.pendingSync,
       syncLastError: updateSyncLastError ? syncLastError : this.syncLastError,
+      recognizedAt: updateRecognizedAt ? recognizedAt : this.recognizedAt,
     );
   }
 }

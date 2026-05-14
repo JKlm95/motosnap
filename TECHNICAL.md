@@ -18,10 +18,13 @@ Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach c
 
 ## Model `VehicleScan` (DTO, ręczny JSON)
 
-- **Wersjonowanie:** `toJson()` zapisuje `schema_version: 3`. `fromJson()` rozpoznaje rekordy legacy (pola `image_path`, `captured_at`, `latitude`/`longitude` na root) i mapuje je na nowy kształt ze statusem `waitingForRecognition`.
+- **Wersjonowanie:** `toJson()` zapisuje `schema_version: 4`. `fromJson()` rozpoznaje rekordy legacy (pola `image_path`, `captured_at`, `latitude`/`longitude` na root) i mapuje je na nowy kształt ze statusem `waitingForRecognition`.
 - **Status:** `VehicleScanStatus` — `draft`, `waitingForRecognition`, `recognized`, `failed` (UI nie symuluje rozpoznania — po zapisie lokalnym jest `waitingForRecognition`).
 - **Lokalizacja:** `ScanLocation` — `latitude`, `longitude`, opcjonalnie `city`, `country`, `displayName`, `isApproximatePublicLocation` (domyślnie `true`).
-- **Pojazd:** `VehicleInfo?` — pola pod przyszłe AI; `null` oznacza brak rozpoznania.
+- **Wynik AI (niezmieniany korektą UI):** `vehicleInfo` (`vehicle_info` w Firestore) — wyłącznie z Cloud Function / backendu; przy parsowaniu z odpowiedzi callable używane jest `VehicleInfo.fromAiResponseJson`, żeby wyczyścić ewentualne `was_user_corrected` z JSON.
+- **Korekta użytkownika:** `userCorrection` (`user_correction` w Firestore) — osobny obiekt [`UserVehicleCorrection`](lib/features/scan/domain/user_vehicle_correction.dart) (`vehicle_type`, pola tekstowe, `possible_engines`, `short_description`, `corrected_at`, `source: "user"`). Nie nadpisuje `vehicleInfo`.
+- **Prezentacja:** `effectiveVehicleInfo` — jeśli jest `userCorrection`, buduje [`VehicleInfo`](lib/features/scan/domain/vehicle_info.dart) z `wasUserCorrected: true` i uzupełnia braki z `vehicleInfo` (baseline AI); w przeciwnym razie zwraca `vehicleInfo`.
+- **Czas rozpoznania AI:** `recognizedAt` (ISO w Hive; w Firestore `recognized_at` jako `Timestamp`) — ustawiany z callable (`recognized_at` w JSON odpowiedzi) oraz przy scaleniu po syncu.
 - **Pola dodatkowe:** `remoteImageUrl`, `recognitionError`, `isPublic`, `pendingSync`, `syncLastError` (ostatni błąd uploadu do chmury).
 
 Enum **`VehicleType`** jest w modelu informacji o pojeździe; dopuszczalne są `unknown` / `other`.
@@ -41,6 +44,7 @@ Metody:
 | `updateScan` | `upsert` z aktualizacją `updatedAt`. |
 | `deleteScan` | Usunięcie pliku lokalnego (best effort) + rekordu w Hive. |
 | `markAsPublic` / `markAsPrivate` | Odczyt, `copyWith(isPublic: ...)`, `updateScan`. |
+| `updateUserCorrection` | Zapis `userCorrection` w Hive; jeśli skan jest zsynchronizowany (`!pendingSync` + `remoteImageUrl`), wypchnięcie tylko `user_correction` do Firestore przez [`UserCorrectionRemoteSink`](lib/features/scan/domain/user_correction_remote_sink.dart) (implementacja: [`FirebaseCloudSyncService`](lib/features/scan/data/firebase_cloud_sync_service.dart)). |
 
 ---
 
@@ -78,8 +82,8 @@ Metody:
 
 ### Firestore (skany)
 
-- Ścieżka: `users/{uid}/scans/{scanId}` (merge `set`).
-- Pola m.in.: `status`, `is_public`, `remote_image_url`, `vehicle_info`, `recognition_error`, `schema_version`, znaczniki czasu.
+- Ścieżka: `users/{uid}/scans/{scanId}` (merge `set` przy uploadzie klienta).
+- Pola m.in.: `status`, `is_public`, `remote_image_url`, `vehicle_info`, `user_correction`, `recognition_error`, `recognized_at`, `schema_version`, znaczniki czasu, `exact_location`, `public_location_approximation`.
 - **Prywatność GPS:** `exact_location` — mapa z dokładnymi `latitude` / `longitude` (tylko w dokumencie prywatnym użytkownika). `public_location_approximation` — wyłącznie `city`, `country`, `display_name` (bez dokładnych współrzędnych w tym polu). Flaga `is_public` zapisana w dokumencie; publiczny feed / mapa **nie** są zaimplementowane (TODO poniżej).
 
 ### Storage
@@ -89,7 +93,9 @@ Metody:
 ### Sync (ręczny)
 
 - Interfejs domenowy: `PendingScanSync.syncAllPending` — implementacja `FirebaseCloudSyncService` (równolegle `CloudScanSyncService` z pustym `enqueueForUpload`, żeby nie robić automatycznego uploadu po zapisie lokalnym).
-- Po sukcesie: `remoteImageUrl` (download URL), `pendingSync: false`, czyszczenie `sync_last_error`. Przy błędzie: `sync_last_error` + `pendingSync` pozostaje `true`.
+- **Upload klienta (merge):** przy istniejącym dokumencie **nie** wysyła `vehicle_info`, `recognized_at`, `recognition_error` ani `status` — uniknięcie nadpisania wyniku AI i degradacji statusu z `recognized` do `waitingForRecognition`. Przy pierwszym utworzeniu dokumentu wysyłany jest `status: waitingForRecognition`. Zawsze wysyłane są m.in. `remote_image_url`, `is_public`, lokalizacja, `schema_version`, opcjonalnie `user_correction` jeśli istnieje lokalnie.
+- **Scalanie po zapisie:** po `set(merge)` wykonywany jest `get` dokumentu; [`VehicleScanRemoteMerger`](lib/features/scan/data/vehicle_scan_remote_merger.dart) scala odpowiedź z lokalnym `VehicleScan` i zapisuje wynik w Hive (`pendingSync: false`, `remoteImageUrl`, pola AI z Firestore gdy ustawione, ochrona lokalnego stanu „po AI” gdy w chmurze nadal brak `vehicle_info` / status niekońcowy). `user_correction`: wybór nowszego znacznika `corrected_at` (lokal vs zdalny). `localImagePath` i `location` pozostają lokalne.
+- Po sukcesie scalenia: czyszczenie `sync_last_error`. Przy błędzie uploadu: `sync_last_error` + `pendingSync` pozostaje `true`.
 - UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów).
 
 ### Cloud Functions — rozpoznanie pojazdu (Gemini)
@@ -101,12 +107,13 @@ Metody:
 - **Wejście (data):** `{ "scanId": string, "language": "pl" | "en" }` — wymaga zalogowanego użytkownika (`context.auth`).
 - **Przepływ:** walidacja → odczyt `users/{uid}/scans/{scanId}` → wymóg `remote_image_url` + plik `users/{uid}/scans/{scanId}/original.jpg` w Storage → pobranie JPEG → Gemini → parsowanie JSON (Zod) → zapis w Firestore (`status`, `vehicle_info` w snake_case, `recognition_error`, `recognized_at`, `updated_at`). Sukces: `recognized`; błąd sieciowy AI lub parsowania: `failed` + krótki `recognition_error`.
 - **Prompt (zasady):** identyfikacja pojazdu z obrazu; bez VIN/tablic/osób; `possibleEngines` max 4 krótkie stringi; `shortDescription` max 2 zdania; język treści zgodny z `language`; schemat JSON jak w [`vehicleSchema.ts`](functions/src/vehicleSchema.ts).
-- **Flutter:** [`VehicleAnalysisService`](lib/features/scan/domain/vehicle_analysis_service.dart) + [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart) wywołują callable i **aktualizują lokalny Hive** na podstawie odpowiedzi (bez bezpośredniego Gemini w aplikacji). UI: szczegóły skanu — przycisk „Analizuj przez AI” gdy `waitingForRecognition` i skan zsynchronizowany (`!pendingSync` + `remoteImageUrl`).
+- **Flutter:** [`VehicleAnalysisService`](lib/features/scan/domain/vehicle_analysis_service.dart) + [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart) wywołują callable i **aktualizują lokalny Hive** na podstawie odpowiedzi (bez bezpośredniego Gemini w aplikacji). Odpowiedź zawiera m.in. `recognized_at` (ISO) dla spójnego `recognizedAt` lokalnie; `userCorrection` w skanie **nie** jest kasowany przy aktualizacji AI. UI: szczegóły skanu — przycisk „Analizuj przez AI” gdy `waitingForRecognition` i skan zsynchronizowany (`!pendingSync` + `remoteImageUrl`).
 
 ### Reguły bezpieczeństwa (podsumowanie)
 
 - Repozytorium: [`firestore.rules`](firestore.rules), [`storage.rules`](storage.rules), wpis [`firebase.json`](firebase.json) pod deploy CLI.
-- **Firestore:** odczyt/zapis tylko dla `request.auth.uid == userId` w `users/{userId}` oraz `users/{userId}/scans/{scanId}` (długość `scanId` ograniczona).
+- **Firestore — dokument użytkownika `users/{userId}`:** pełny odczyt/zapis dla właściciela (profil).
+- **Firestore — skany `users/{userId}/scans/{scanId}`:** odczyt/usuń dla właściciela; **create** — tylko `status == waitingForRecognition` i brak pól `vehicle_info`, `recognized_at`, `recognition_error` w żądaniu; **update** — klient nie może zmieniać kluczy `vehicle_info`, `recognized_at`, `recognition_error`, `status` (przejścia do `recognized` / `failed` wyłącznie przez Admin SDK w Cloud Function). Dozwolone są m.in. `user_correction`, `is_public`, `remote_image_url`, lokalizacja, `schema_version`, `updated_at`.
 - **Storage:** odczyt/zapis tylko własnego prefiksu `users/{uid}/scans/.../original.jpg`.
 
 ---
@@ -129,7 +136,8 @@ Metody:
 
 ## Testy
 
-- `test/vehicle_scan_test.dart` — roundtrip JSON (schema 3) + migracja legacy.
+- `test/vehicle_scan_test.dart` — roundtrip JSON (schema 4), `user_correction` + `effectiveVehicleInfo`, migracja legacy.
+- `test/vehicle_scan_remote_merger_test.dart` — strategia scalania po syncu (ochrona lokalnego `recognized`, nadpisanie `vehicle_info` z chmury, merge `user_correction`).
 - `test/scan_repository_test.dart` — integracja repozytorium z Hive + stub pozycji oraz widget historii (pusty stan).
 - `test/auth_route_resolution_test.dart` — redirecty auth (`go_router`).
 - `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu).
@@ -189,7 +197,7 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 1. **Freezed / `json_serializable`** — celowo wyłączone do czasu stabilnego `build_runner` w łańcuchu zależności; DTO są ręczne.
 2. **`watchScans`** — implementacja oparta o broadcast i pełne przeładowanie listy; przy dużej liczbie rekordów rozważyć stronicowanie lub incremental sync.
 3. **Usuwanie pliku przy nieudanym zapisie Hive** — obsłużone tylko dla etapu po `persistCameraImage` a przed sukcesem zapisu rekordu; inne ścieżki błędów warto dalej twardo audytować.
-4. **Szczegóły skanu** — brak ręcznej edycji `vehicleInfo` z UI (wynik tylko z Cloud Function); brak automatycznego AI po zapisie lokalnym.
+4. **Szczegóły skanu** — uproszczony formularz korekty zapisuje `userCorrection`, nie `vehicleInfo`; brak automatycznego AI po zapisie lokalnym.
 5. **Publiczny feed / mapa / kolekcja „społecznościowa”** — pole `is_public` i `public_location_approximation` są przygotowane pod Firestore, ale brak osobnej kolekcji indeksu publicznego, agregacji ani endpointów — unikamy wycieku dokładnego GPS poza dokument prywatny użytkownika. Rozwój: osobna kolekcja lub Cloud Function filtrująca dane oraz zasady odczytu tylko dla zaufanych ról.
 6. **Synchronizacja w tle** — tylko ręczny przycisk; brak Workmanagera / retry backoff / kolejki offline-dedicated.
 7. **`RouterRefreshBridge`** — strumień sesji trwa cały czas życia aplikacji; przy rozbudowie auth rozważyć jawne zamknięcie subskrypcji poza `dispose` widgetu root (obecnie powiązane z `_RouterLifecycle`).
@@ -200,4 +208,4 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 
 - Reverse geocoding może zawieść (brak sieci, limity API platformy) — UI pokazuje współrzędne jako fallback.
 - `ScanPermissionsService` tworzony inline w `AppRouter` dla zakładki Skan (bez globalnego DI) — akceptowalne na MVP; przy rozroście przenieść do `RepositoryProvider` / injectora.
-- **Firestore + sync klienta:** reguły nadal pozwalają właścicielowi na zapis całego dokumentu skanu; ponowny upload z lokalnego stanu może nadpisać `vehicle_info` ustawione przez Cloud Function — TODO: rozdzielenie pól serwerowych (patrz komentarz w `firestore.rules`).
+- **Reguły Firestore vs pełny model:** klient nadal może w teorii wysłać w merge pola spoza listy zabronionych (np. przyszłe pola serwerowe o innych nazwach); trzymać spójność payloadu w [`FirebaseCloudSyncService`](lib/features/scan/data/firebase_cloud_sync_service.dart). Dokument nadrzędny `users/{uid}` ma szerokie `write` — jeśli kiedyś profil będzie edytowany z klienta, rozważyć węższe reguły.

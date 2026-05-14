@@ -68,17 +68,26 @@ final class FirebaseVehicleAnalysisService implements VehicleAnalysisService {
     final VehicleInfo? info;
     final infoRaw = data['vehicle_info'];
     if (infoRaw is Map) {
-      info = VehicleInfo.fromJson(Map<String, dynamic>.from(infoRaw));
+      info = VehicleInfo.fromAiResponseJson(Map<String, dynamic>.from(infoRaw));
     } else {
       info = null;
     }
 
     final err = data['recognition_error'] as String?;
+    final raRaw = data['recognized_at'] as String?;
+    final DateTime? recognizedAt = raRaw != null
+        ? DateTime.parse(raRaw).toUtc()
+        : null;
 
     final updated = scan.copyWith(
       status: status,
-      vehicleInfo: info ?? scan.vehicleInfo,
+      updateStatus: true,
+      vehicleInfo: info,
+      updateVehicleInfo: info != null,
       recognitionError: err,
+      updateRecognitionError: true,
+      recognizedAt: recognizedAt,
+      updateRecognizedAt: recognizedAt != null,
       updatedAt: DateTime.now().toUtc(),
     );
     await _repository.updateScan(updated);

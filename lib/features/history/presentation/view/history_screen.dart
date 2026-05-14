@@ -113,7 +113,7 @@ class _ScanTile extends StatelessWidget {
         '${scan.location.latitude.toStringAsFixed(3)}, '
             '${scan.location.longitude.toStringAsFixed(3)}';
     final thumb = File(scan.localImagePath);
-    final recognition = scan.vehicleInfo == null
+    final recognition = scan.effectiveVehicleInfo == null
         ? 'Rozpoznanie oczekuje'
         : 'Dane pojazdu dostępne';
 

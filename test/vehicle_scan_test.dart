@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:motosnap/features/scan/domain/scan_location.dart';
+import 'package:motosnap/features/scan/domain/user_vehicle_correction.dart';
 import 'package:motosnap/features/scan/domain/vehicle_info.dart';
 import 'package:motosnap/features/scan/domain/vehicle_scan.dart';
 import 'package:motosnap/features/scan/domain/vehicle_scan_status.dart';
@@ -36,7 +37,7 @@ void main() {
     );
 
     final json = original.toJson();
-    expect(json['schema_version'], 3);
+    expect(json['schema_version'], 4);
     final restored = VehicleScan.fromJson(json);
 
     expect(restored.id, original.id);
@@ -54,6 +55,37 @@ void main() {
     expect(restored.location.city, original.location.city);
     expect(restored.vehicleInfo?.brand, original.vehicleInfo?.brand);
     expect(restored.pendingSync, original.pendingSync);
+  });
+
+  test('VehicleScan — user_correction + effectiveVehicleInfo', () {
+    final created = DateTime.utc(2026, 5, 14, 12);
+    final correction = UserVehicleCorrection(
+      vehicleType: VehicleType.motorcycle,
+      brand: 'Po korekcie',
+      correctedAt: DateTime.utc(2026, 5, 15, 8),
+    );
+    final scan = VehicleScan(
+      id: 'id1',
+      localImagePath: '/p.jpg',
+      createdAt: created,
+      updatedAt: created,
+      status: VehicleScanStatus.recognized,
+      location: const ScanLocation(latitude: 0, longitude: 0),
+      vehicleInfo: const VehicleInfo(
+        vehicleType: VehicleType.car,
+        brand: 'AI',
+        model: 'M',
+      ),
+      userCorrection: correction,
+      pendingSync: false,
+    );
+
+    final json = scan.toJson();
+    final back = VehicleScan.fromJson(json);
+    expect(back.userCorrection?.brand, 'Po korekcie');
+    expect(back.vehicleInfo?.brand, 'AI');
+    expect(back.effectiveVehicleInfo?.brand, 'Po korekcie');
+    expect(back.effectiveVehicleInfo?.wasUserCorrected, isTrue);
   });
 
   test('VehicleScan — migracja legacy JSON', () {

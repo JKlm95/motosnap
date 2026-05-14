@@ -8,12 +8,16 @@ import '../../../core/remote/cloud_scan_sync_service.dart';
 import '../../../core/remote/sync_summary.dart';
 import '../domain/pending_scan_sync.dart';
 import '../domain/scan_repository.dart';
+import '../domain/user_correction_remote_sink.dart';
+import '../domain/user_vehicle_correction.dart';
 import '../domain/vehicle_scan.dart';
+import '../domain/vehicle_scan_status.dart';
+import 'vehicle_scan_remote_merger.dart';
 
 /// Konservatywna integracja z Firebase: automatyczny upload po zapisie lokalnym
 /// jest wyłączony — użytkownik uruchamia sync ręcznie z ustawień.
 final class FirebaseCloudSyncService
-    implements CloudScanSyncService, PendingScanSync {
+    implements CloudScanSyncService, PendingScanSync, UserCorrectionRemoteSink {
   FirebaseCloudSyncService({
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
@@ -62,6 +66,46 @@ final class FirebaseCloudSyncService
     return SyncSummary(uploaded: uploaded, failed: failed);
   }
 
+  @override
+  Future<void> pushUserCorrection(
+    String scanId,
+    UserVehicleCorrection correction,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+    final uid = user.uid;
+    final doc = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('scans')
+        .doc(scanId);
+    final snap = await doc.get();
+    if (!snap.exists) {
+      return;
+    }
+    await doc.set(<String, dynamic>{
+      'user_correction': _userCorrectionToFirestore(correction),
+      'updated_at': FieldValue.serverTimestamp(),
+      'schema_version': 4,
+    }, SetOptions(merge: true));
+  }
+
+  Map<String, dynamic> _userCorrectionToFirestore(UserVehicleCorrection c) {
+    return <String, dynamic>{
+      'vehicle_type': c.vehicleType.name,
+      'brand': c.brand,
+      'model': c.model,
+      'generation': c.generation,
+      'production_years': c.productionYears,
+      'possible_engines': c.possibleEngines,
+      'short_description': c.shortDescription,
+      'corrected_at': Timestamp.fromDate(c.correctedAt),
+      'source': c.source,
+    };
+  }
+
   Future<void> _uploadSingleScan(
     ScanRepository localRepository,
     String uid,
@@ -89,6 +133,42 @@ final class FirebaseCloudSyncService
         .collection('scans')
         .doc(scan.id);
 
+    final existing = await doc.get();
+    final docExists = existing.exists;
+
+    final payload = _clientScanMergePayload(
+      scan: scan,
+      downloadUrl: downloadUrl,
+      docExists: docExists,
+    );
+
+    await doc.set(payload, SetOptions(merge: true));
+
+    final mergedSnap = await doc.get();
+    if (!mergedSnap.exists) {
+      throw StateError('Brak dokumentu skanu po zapisie do Firestore.');
+    }
+    final remoteData = mergedSnap.data();
+    if (remoteData == null) {
+      throw StateError('Pusty dokument skanu po zapisie do Firestore.');
+    }
+
+    final merged = VehicleScanRemoteMerger.mergeAfterFirestoreFetch(
+      local: scan,
+      remote: Map<String, dynamic>.from(remoteData),
+      remoteImageUrl: downloadUrl,
+    );
+
+    await localRepository.updateScan(merged);
+  }
+
+  /// Pola AI i statusu końcowego nie są tu ustawiane przy istniejącym dokumencie — zapobiega
+  /// przypadkowemu nadpisaniu wyniku z Cloud Function lokalnym stanem „oczekiwanie”.
+  Map<String, dynamic> _clientScanMergePayload({
+    required VehicleScan scan,
+    required String downloadUrl,
+    required bool docExists,
+  }) {
     final publicApprox = <String, dynamic>{
       'city': scan.location.city,
       'country': scan.location.country,
@@ -100,27 +180,26 @@ final class FirebaseCloudSyncService
       'longitude': scan.location.longitude,
     };
 
-    await doc.set(<String, dynamic>{
-      'created_at': Timestamp.fromDate(scan.createdAt),
-      'updated_at': Timestamp.fromDate(scan.updatedAt),
-      'status': scan.status.name,
-      'is_public': scan.isPublic,
+    final payload = <String, dynamic>{
+      'updated_at': FieldValue.serverTimestamp(),
       'remote_image_url': downloadUrl,
+      'is_public': scan.isPublic,
       'exact_location': exact,
       'public_location_approximation': publicApprox,
-      'vehicle_info': scan.vehicleInfo?.toJson(),
-      'recognition_error': scan.recognitionError,
-      'schema_version': 3,
-    }, SetOptions(merge: true));
+      'schema_version': 4,
+    };
 
-    await localRepository.updateScan(
-      scan.copyWith(
-        remoteImageUrl: downloadUrl,
-        pendingSync: false,
-        syncLastError: null,
-        updateSyncLastError: true,
-        updatedAt: DateTime.now().toUtc(),
-      ),
-    );
+    if (scan.userCorrection != null) {
+      payload['user_correction'] = _userCorrectionToFirestore(
+        scan.userCorrection!,
+      );
+    }
+
+    if (!docExists) {
+      payload['created_at'] = Timestamp.fromDate(scan.createdAt);
+      payload['status'] = VehicleScanStatus.waitingForRecognition.name;
+    }
+
+    return payload;
   }
 }

@@ -81,4 +81,21 @@ class VehicleInfo {
           false,
     );
   }
+
+  /// Wynik AI / backendu — zawsze `wasUserCorrected: false` (nie używać flag z JSON).
+  factory VehicleInfo.fromAiResponseJson(Map<String, dynamic> json) {
+    final base = VehicleInfo.fromJson(json);
+    return VehicleInfo(
+      vehicleType: base.vehicleType,
+      brand: base.brand,
+      model: base.model,
+      generation: base.generation,
+      productionYears: base.productionYears,
+      possibleEngines: base.possibleEngines,
+      shortDescription: base.shortDescription,
+      confidence: base.confidence,
+      sourceLanguage: base.sourceLanguage,
+      wasUserCorrected: false,
+    );
+  }
 }

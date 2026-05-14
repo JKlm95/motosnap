@@ -16,6 +16,7 @@ import 'package:motosnap/features/history/presentation/view/history_screen.dart'
 import 'package:motosnap/features/scan/data/noop_vehicle_analysis_service.dart';
 import 'package:motosnap/features/scan/data/scan_repository_impl.dart';
 import 'package:motosnap/features/scan/domain/scan_repository.dart';
+import 'package:motosnap/features/scan/domain/user_vehicle_correction.dart';
 import 'package:motosnap/features/scan/domain/vehicle_scan.dart';
 import 'package:motosnap/features/scan/domain/vehicle_scan_status.dart';
 
@@ -128,4 +129,10 @@ final class _EmptyRepo implements ScanRepository {
 
   @override
   Future<void> markAsPrivate(String id) async {}
+
+  @override
+  Future<void> updateUserCorrection(
+    String scanId,
+    UserVehicleCorrection correction,
+  ) async {}
 }

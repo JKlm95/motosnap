@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_info.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
@@ -11,6 +12,7 @@ import '../../domain/vehicle_type.dart';
 import '../scan_labels.dart';
 import 'scan_detail_cubit.dart';
 import 'scan_detail_state.dart';
+import 'vehicle_user_correction_sheet.dart';
 
 class ScanDetailScreen extends StatelessWidget {
   const ScanDetailScreen({required this.scanId, super.key});
@@ -192,15 +194,57 @@ class _DetailBody extends StatelessWidget {
                 label: const Text('Analizuj przez AI'),
               ),
             ],
-            if (scan.status == VehicleScanStatus.recognized &&
-                scan.vehicleInfo != null) ...[
+            if (scan.status == VehicleScanStatus.recognized ||
+                scan.status == VehicleScanStatus.failed) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => showVehicleUserCorrectionSheet(
+                        context: context,
+                        scan: scan,
+                        onSave: (UserVehicleCorrection c) => context
+                            .read<ScanDetailCubit>()
+                            .saveUserCorrection(c),
+                      ),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Popraw wynik'),
+              ),
+            ],
+            if ((scan.status == VehicleScanStatus.recognized ||
+                    scan.status == VehicleScanStatus.failed) &&
+                scan.effectiveVehicleInfo != null) ...[
               const SizedBox(height: 20),
+              if (scan.userCorrection != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Poprawione przez użytkownika',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               Text(
-                'Rozpoznanie AI',
+                scan.status == VehicleScanStatus.recognized
+                    ? 'Rozpoznanie'
+                    : 'Dane pojazdu (korekta / ostatnia znana)',
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               const SizedBox(height: 8),
-              _VehicleInfoCard(info: scan.vehicleInfo!),
+              _VehicleInfoCard(info: scan.effectiveVehicleInfo!),
+              if (scan.userCorrection != null && scan.vehicleInfo != null) ...[
+                const SizedBox(height: 8),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(
+                    'Oryginalny wynik AI',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  children: [_VehicleInfoCard(info: scan.vehicleInfo!)],
+                ),
+              ],
             ],
             if (scan.status == VehicleScanStatus.failed) ...[
               const SizedBox(height: 16),

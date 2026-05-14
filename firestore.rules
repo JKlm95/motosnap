@@ -1,19 +1,46 @@
 rules_version = '2';
 
-// TODO(MVP): rozdzielić pola zapisywane tylko przez Cloud Functions (AI) od pól
-// aktualizowanych przez klienta — obecnie klient może nadpisać `vehicle_info` przy ponownym syncu.
+// Pola AI (`vehicle_info`, `recognized_at`, `recognition_error`, przejścia `status` → recognized/failed)
+// są ustawiane wyłącznie przez Cloud Functions (Admin SDK omija te reguły).
+// Klient może aktualizować m.in. `is_public`, `user_correction`, metadane lokalizacji i URL obrazu.
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Profil użytkownika + prywatne skany — tylko właściciel (request.auth.uid).
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
       match /scans/{scanId} {
-        allow read, write: if request.auth != null
+        allow read: if request.auth != null
           && request.auth.uid == userId
           && scanId.size() > 0
           && scanId.size() <= 128;
+
+        allow delete: if request.auth != null
+          && request.auth.uid == userId
+          && scanId.size() > 0
+          && scanId.size() <= 128;
+
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && scanId.size() > 0
+          && scanId.size() <= 128
+          && request.resource.data.status == 'waitingForRecognition'
+          && !request.resource.data.keys().hasAny([
+            'vehicle_info',
+            'recognized_at',
+            'recognition_error',
+          ]);
+
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          && scanId.size() > 0
+          && scanId.size() <= 128
+          && !request.resource.data.diff(resource.data).changedKeys().hasAny([
+            'vehicle_info',
+            'recognized_at',
+            'recognition_error',
+            'status',
+          ]);
       }
     }
   }

@@ -1,5 +1,6 @@
 import 'package:image_picker/image_picker.dart';
 
+import 'user_vehicle_correction.dart';
 import 'vehicle_scan.dart';
 
 abstract class ScanRepository {
@@ -20,4 +21,10 @@ abstract class ScanRepository {
   Future<void> markAsPublic(String id);
 
   Future<void> markAsPrivate(String id);
+
+  /// Zapisuje korektę użytkownika (osobno od [VehicleScan.vehicleInfo]); opcjonalnie wypycha do Firestore.
+  Future<void> updateUserCorrection(
+    String scanId,
+    UserVehicleCorrection correction,
+  );
 }

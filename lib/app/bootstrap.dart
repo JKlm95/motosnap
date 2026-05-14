@@ -20,6 +20,7 @@ import '../features/scan/data/noop_vehicle_analysis_service.dart';
 import '../features/scan/data/scan_repository_impl.dart';
 import '../features/scan/domain/pending_scan_sync.dart';
 import '../features/scan/domain/scan_repository.dart';
+import '../features/scan/domain/user_correction_remote_sink.dart';
 import '../features/scan/domain/vehicle_analysis_service.dart';
 import '../features/settings/data/settings_repository_impl.dart';
 import '../features/settings/domain/settings_repository.dart';
@@ -58,6 +59,9 @@ class AppBootstrap {
     final CloudScanSyncService cloudScanService =
         firebaseCloudSync ?? NoOpCloudScanSyncService();
 
+    final UserCorrectionRemoteSink correctionRemoteSink =
+        firebaseCloudSync ?? const NoOpUserCorrectionRemoteSink();
+
     final scanLocal = await ScanLocalDataSource.open();
     final settingsLocal = await SettingsLocalDataSource.open();
 
@@ -68,6 +72,7 @@ class AppBootstrap {
       cloudSync: cloudScanService,
       analysisService: NoOpVehicleAnalysisService(),
       locationEnricher: GeocodingLocationEnricher(),
+      correctionSink: correctionRemoteSink,
     );
 
     final VehicleAnalysisService vehicleAnalysis = firebaseReady

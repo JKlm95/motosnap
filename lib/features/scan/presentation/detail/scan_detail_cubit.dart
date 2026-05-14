@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/scan_repository.dart';
+import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_analysis_exception.dart';
 import '../../domain/vehicle_analysis_service.dart';
 import 'scan_detail_state.dart';
@@ -112,6 +113,27 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
           errorMessage: 'Usuwanie nie powiodło się: $e',
         ),
       );
+    }
+  }
+
+  Future<void> saveUserCorrection(UserVehicleCorrection correction) async {
+    final current = state.scan;
+    if (current == null) {
+      return;
+    }
+    emit(
+      ScanDetailState(
+        phase: ScanDetailPhase.ready,
+        scan: current,
+        busy: true,
+        errorMessage: null,
+      ),
+    );
+    try {
+      await _repository.updateUserCorrection(scanId, correction);
+      await _emitReadyFromRepo();
+    } on Object catch (e) {
+      await _emitReadyFromRepo(errorMessage: e.toString());
     }
   }
 

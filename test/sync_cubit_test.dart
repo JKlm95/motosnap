@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:motosnap/core/remote/sync_summary.dart';
 import 'package:motosnap/features/scan/domain/pending_scan_sync.dart';
 import 'package:motosnap/features/scan/domain/scan_repository.dart';
+import 'package:motosnap/features/scan/domain/user_vehicle_correction.dart';
 import 'package:motosnap/features/scan/domain/vehicle_scan.dart';
 import 'package:motosnap/features/settings/presentation/cubit/sync_cubit.dart';
 import 'package:motosnap/features/settings/presentation/cubit/sync_state.dart';
@@ -57,4 +58,10 @@ final class _FakeRepo implements ScanRepository {
 
   @override
   Future<void> markAsPrivate(String id) async {}
+
+  @override
+  Future<void> updateUserCorrection(
+    String scanId,
+    UserVehicleCorrection correction,
+  ) async {}
 }

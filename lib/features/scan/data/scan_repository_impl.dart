@@ -9,6 +9,8 @@ import '../../../core/media/image_storage_service.dart';
 import '../../../core/remote/cloud_scan_sync_service.dart';
 import '../../../core/storage/scan_local_data_source.dart';
 import '../domain/scan_repository.dart';
+import '../domain/user_correction_remote_sink.dart';
+import '../domain/user_vehicle_correction.dart';
 import '../domain/vehicle_analysis_service.dart';
 import '../domain/vehicle_scan.dart';
 import '../domain/vehicle_scan_status.dart';
@@ -22,12 +24,14 @@ class ScanRepositoryImpl implements ScanRepository {
     required CloudScanSyncService cloudSync,
     required VehicleAnalysisService analysisService,
     required LocationMetadataEnricher locationEnricher,
+    UserCorrectionRemoteSink? correctionSink,
   }) : _local = localDataSource,
        _position = positionReader,
        _imageStorage = imageStorage,
        _cloudSync = cloudSync,
        _analysis = analysisService,
-       _locationEnricher = locationEnricher;
+       _locationEnricher = locationEnricher,
+       _correctionSink = correctionSink ?? const NoOpUserCorrectionRemoteSink();
 
   final ScanLocalDataSource _local;
   final CurrentPositionReader _position;
@@ -35,6 +39,7 @@ class ScanRepositoryImpl implements ScanRepository {
   final CloudScanSyncService _cloudSync;
   final VehicleAnalysisService _analysis;
   final LocationMetadataEnricher _locationEnricher;
+  final UserCorrectionRemoteSink _correctionSink;
 
   final _changes = StreamController<void>.broadcast();
 
@@ -131,5 +136,28 @@ class ScanRepositoryImpl implements ScanRepository {
       return;
     }
     await updateScan(scan.copyWith(isPublic: false));
+  }
+
+  @override
+  Future<void> updateUserCorrection(
+    String scanId,
+    UserVehicleCorrection correction,
+  ) async {
+    final scan = await getScan(scanId);
+    if (scan == null) {
+      return;
+    }
+    final next = scan.copyWith(
+      userCorrection: correction,
+      updateUserCorrection: true,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    await updateScan(next);
+    final synced =
+        !next.pendingSync &&
+        (next.remoteImageUrl != null && next.remoteImageUrl!.isNotEmpty);
+    if (synced) {
+      await _correctionSink.pushUserCorrection(scanId, correction);
+    }
   }
 }

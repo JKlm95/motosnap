@@ -147,12 +147,14 @@ export const analyzeVehicleScan = onCall(
         status: "failed",
         vehicle_info: null,
         recognition_error: msg,
+        recognized_at: new Date().toISOString(),
       };
     }
 
     try {
       const vehicle = parseGeminiVehicleJson(rawJson);
       const vehicleInfo = toFirestoreVehicleInfo(vehicle);
+      // merge: only AI-owned fields — existing `user_correction` is preserved.
       await ref.set(
         {
           status: "recognized",
@@ -167,6 +169,7 @@ export const analyzeVehicleScan = onCall(
         status: "recognized",
         vehicle_info: vehicleInfo,
         recognition_error: null,
+        recognized_at: new Date().toISOString(),
       };
     } catch (e) {
       const msg =
@@ -186,6 +189,7 @@ export const analyzeVehicleScan = onCall(
         status: "failed",
         vehicle_info: null,
         recognition_error: msg,
+        recognized_at: new Date().toISOString(),
       };
     }
   },

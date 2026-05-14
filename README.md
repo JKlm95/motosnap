@@ -20,7 +20,7 @@
 |--------|-----------|
 | **Skan** | Prośba o kamerę + lokalizację, zdjęcie tylko z aparatu (bez galerii), zapis pliku i rekordu `waitingForRecognition` |
 | **Historia** | Lista lokalna, miniatura, data, miejsce (jeśli uda się z geokodowania), odświeżanie |
-| **Szczegóły** | Zdjęcie, status, lokalizacja, publiczność, usuwanie; po syncu: **„Analizuj przez AI”** (callable `analyzeVehicleScan` + Gemini Flash); wyświetlanie wyniku lub błędu + ponowienie |
+| **Szczegóły** | Zdjęcie, status, lokalizacja, publiczność, usuwanie; po syncu: **„Analizuj przez AI”** (callable `analyzeVehicleScan` + Gemini Flash); wyświetlanie wyniku lub błędu + ponowienie; **„Popraw wynik”** zapisuje korektę osobno od wyniku AI (`user_correction`) |
 | **Ustawienia** | Motyw, konto (e-mail, wylogowanie), język (placeholder), status sync + **„Synchronizuj teraz”** (gdy Firebase działa) |
 
 ### Firebase (skrót)
@@ -57,7 +57,7 @@ flutter test
 
 ## Roadmap (wysoki poziom)
 
-1. **AI** — dopracowanie: tło, kolejka, lepsze reguły Firestore (tylko serwer zapisuje `vehicle_info`), ewentualnie Vertex zamiast klucza API.
+1. **AI** — tło, kolejka, ewentualnie Vertex zamiast klucza API; reguły Firestore już ograniczają zapis pól AI z klienta (`vehicle_info`, `status` końcowy itd.).
 2. **Synchronizacja** — tło, retry, konflikty, ewentualnie pełna kolejka offline.
 3. **Publiczny feed** — osobna kolekcja / reguły tylko dla przybliżonej lokalizacji (bez dokładnego GPS w danych publicznych).
 
