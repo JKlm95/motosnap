@@ -66,8 +66,9 @@ Metody:
 ### Inicjalizacja
 
 - `FirebaseInitializer.initialize()` wywoływane tylko przy starcie produkcyjnym (`hivePath == null` w `AppBootstrap`). W testach jednostkowych z podanym `hivePath` Firebase **nie** jest startowane.
+- **Idempotentność:** jeśli `Firebase.apps` nie jest puste, zwracany jest od razu `FirebaseInitStatus.ready` (istniejąca domyślna aplikacja — bez drugiego `initializeApp`). W przeciwnym razie wywoływane jest `Firebase.initializeApp(options: …)`. Błąd `FirebaseException` z kodem `duplicate-app` (np. wyścig z auto-init natywnym po `google-services`) jest traktowany jak sukces — `ready`, a nie tryb offline.
 - Konfiguracja przez FlutterFire: `lib/firebase_options.dart` (placeholder + komentarz), natywne `google-services.json` / `GoogleService-Info.plist`. Brak sekretów serwerowych w repo — same identyfikatory klienckie zgodne z konwencją FlutterFire.
-- Przy `initializeApp` z błędem: `FirebaseInitStatus.failed` → `OfflineAuthRepository` + brak `PendingScanSync` (przycisk „Synchronizuj teraz” nieaktywny).
+- Przy **rzeczywistym** błędzie `initializeApp` (inny niż `duplicate-app`): `FirebaseInitStatus.failed` → `OfflineAuthRepository` + brak `PendingScanSync` (przycisk „Synchronizuj teraz” nieaktywny).
 
 ### Auth
 
@@ -122,6 +123,7 @@ Metody:
 - `test/auth_route_resolution_test.dart` — redirecty auth (`go_router`).
 - `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu).
 - `test/login_cubit_test.dart` — walidacja i ścieżka sukcesu logowania (fake `AuthRepository`).
+- `test/firebase_initializer_test.dart` — rozpoznawanie błędu `duplicate-app` jako „już zainicjalizowane”.
 - `test/widget_test.dart` — lekki smoke MaterialApp.
 
 ---
