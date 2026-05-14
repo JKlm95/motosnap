@@ -14,7 +14,8 @@ Opisuje architekturę, przepływ danych, modele, repozytoria, routing oraz znane
 
 ### UI premium (glass, nawigacja, haptyka)
 
-- **`lib/core/ui/app_motion.dart`** — wspólne `Duration` i krzywe (`AppMotion`) dla animacji lekkich na słabszych urządzeniach.
+- **`lib/core/ui/app_motion.dart`** — wspólne `Duration` i krzywe (`AppMotion`) dla animacji lekkich na słabszych urządzeniach; `AppMotion.imageFade` przy pierwszym wyświetleniu zdjęcia (sieć / dekodowanie).
+- **`lib/core/ui/app_shape.dart`** — wspólne promienie (`card`, `headerImage`, `sheetTop`, `thumbnail`) i poziomy blur (`blurNavBar`, `blurNavFab`, `blurDetailSheet`, `glassPanel`) dla spójności szkła, kart i ekranu szczegółów.
 - **`lib/core/haptics/app_haptics.dart`** — `AppHaptics` (wrapper na `HapticFeedback` w `try/catch`).
 - **`lib/core/ui/glass/`** — `GlassSurface` (`BackdropFilter` + półprzezroczyste tło; `blurSigma <= 0` pomija blur), `GlassCard`, `GlassBottomBar` (pill), opcjonalnie `GlassStatusBadge` (domyślnie bez blur), `GlassIconButton`.
 - **`lib/app/shell/`** — `MainShellLayout` / `kShellGlassNavContentPadding` (dolny margines treści pod pływającą nawigacją), `GlassShellBottomNav` (trzy gałęzie shell: skan środek, historia, ustawienia; etykiety z `AppStrings`).

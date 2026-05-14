@@ -5,6 +5,7 @@ import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../../../core/ui/app_motion.dart';
+import '../../../../core/ui/app_shape.dart';
 import '../../../../core/ui/glass/glass_card.dart';
 import '../../domain/vehicle_scan.dart';
 import '../cubit/scan_cubit.dart';
@@ -74,7 +75,7 @@ class ScanScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(AppShape.headerImage),
                       child: ColoredBox(
                         color: Theme.of(
                           context,

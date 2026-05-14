@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_shape.dart';
 import 'glass_surface.dart';
 
 /// Karta w stylu „glass” — używać oszczędnie (np. wyróżnienie, nie całe długie listy).
@@ -9,7 +10,7 @@ class GlassCard extends StatelessWidget {
     super.key,
     this.blurSigma = 12,
     this.padding = const EdgeInsets.all(16),
-    this.borderRadius = const BorderRadius.all(Radius.circular(18)),
+    this.borderRadius = const BorderRadius.all(Radius.circular(AppShape.card)),
   });
 
   final Widget child;

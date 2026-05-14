@@ -77,7 +77,7 @@ abstract final class AppRouter {
             final scanId = state.pathParameters['scanId']!;
             return CustomTransitionPage<void>(
               key: state.pageKey,
-              transitionDuration: AppMotion.normal,
+              transitionDuration: const Duration(milliseconds: 250),
               reverseTransitionDuration: AppMotion.fast,
               child: BlocProvider(
                 create: (_) => ScanDetailCubit(
@@ -99,7 +99,7 @@ abstract final class AppRouter {
                       opacity: curved,
                       child: SlideTransition(
                         position: Tween<Offset>(
-                          begin: const Offset(0.03, 0),
+                          begin: const Offset(0.02, 0.008),
                           end: Offset.zero,
                         ).animate(curved),
                         child: child,

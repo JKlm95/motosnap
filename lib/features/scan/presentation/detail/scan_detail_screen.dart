@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
+import '../../../../core/ui/app_shape.dart';
 import '../../../../core/ui/glass/glass_surface.dart';
 import '../../../../core/ui/shimmer/moto_shimmer.dart';
 import '../../domain/user_vehicle_correction.dart';
@@ -78,7 +79,7 @@ class _ScanDetailLoadingPlaceholder extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(AppShape.headerImage),
                 ),
               ),
             ),
@@ -89,7 +90,7 @@ class _ScanDetailLoadingPlaceholder extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainerHigh,
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
+                    top: Radius.circular(AppShape.sheetTop),
                   ),
                 ),
               ),
@@ -220,7 +221,11 @@ class _DetailBody extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final media = MediaQuery.of(context);
     final fullH = media.size.height;
-    final headerH = (fullH * 0.42).clamp(220.0, fullH * 0.48);
+    final compact = fullH < 700;
+    final headerH = (fullH * (compact ? 0.38 : 0.42)).clamp(
+      compact ? 196.0 : 220.0,
+      fullH * 0.48,
+    );
     final initialSheet = (1.0 - (headerH / fullH) + 0.06)
         .clamp(0.54, 0.66)
         .toDouble();
@@ -250,7 +255,7 @@ class _DetailBody extends StatelessWidget {
           height: headerH,
           child: ClipRRect(
             borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(22),
+              bottom: Radius.circular(AppShape.headerImage),
             ),
             child: ScanImageDisplay(
               heroTag: heroTag,
@@ -269,12 +274,12 @@ class _DetailBody extends StatelessWidget {
           builder: (context, scrollController) {
             return ClipRRect(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
+                top: Radius.circular(AppShape.sheetTop),
               ),
               child: GlassSurface(
-                blurSigma: 14,
+                blurSigma: AppShape.blurDetailSheet,
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
+                  top: Radius.circular(AppShape.sheetTop),
                 ),
                 padding: EdgeInsets.zero,
                 child: Column(

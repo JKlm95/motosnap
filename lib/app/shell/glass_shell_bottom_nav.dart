@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/haptics/app_haptics.dart';
 import '../../core/ui/app_motion.dart';
+import '../../core/ui/app_shape.dart';
 import '../../core/ui/glass/glass_bottom_bar.dart';
 
 /// Pływająca nawigacja shell (History | Scan | Settings) — indeksy gałęzi go_router:
@@ -46,7 +47,7 @@ class GlassShellBottomNav extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             children: [
               GlassBottomBar(
-                blurSigma: 16,
+                blurSigma: AppShape.blurNavBar,
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -115,35 +116,48 @@ class _SideNavItem extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        child: AnimatedScale(
-          scale: selected ? 1.02 : 1,
+        child: AnimatedContainer(
           duration: AppMotion.fast,
           curve: AppMotion.emphasizedDecelerate,
-          child: AnimatedOpacity(
-            opacity: selected ? 1 : 0.72,
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.1)
+                : Colors.transparent,
+          ),
+          child: AnimatedScale(
+            scale: selected ? 1.02 : 1,
             duration: AppMotion.fast,
-            curve: AppMotion.standard,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 22,
-                    color: selected ? scheme.primary : scheme.onSurface,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            curve: AppMotion.emphasizedDecelerate,
+            child: AnimatedOpacity(
+              opacity: selected ? 1 : 0.72,
+              duration: AppMotion.fast,
+              curve: AppMotion.standard,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 22,
                       color: selected ? scheme.primary : scheme.onSurface,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: selected ? scheme.primary : scheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -185,7 +199,7 @@ class _CenterScanFab extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 GlassBottomBar(
-                  blurSigma: 18,
+                  blurSigma: AppShape.blurNavFab,
                   padding: const EdgeInsets.all(12),
                   child: Container(
                     width: 52,

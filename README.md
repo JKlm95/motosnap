@@ -2,50 +2,40 @@
 
 [![Flutter CI](https://github.com/JKlm95/motosnap/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JKlm95/motosnap/actions/workflows/ci.yml)
 
-**MotoSnap** to mobilny MVP do dokumentowania pojazdów w terenie: jedno dotknięcie, zdjęcie z **aparatu**, **obowiązkowy GPS** i zapis **lokalnej historii** — gotowe pod dalszą synchronizację z chmurą i rozpoznanie AI, bez udawania gotowych wyników.
+Aplikacja Flutter (Android / iOS) do skanowania pojazdów w terenie: zdjęcie z aparatu, wymagany GPS, zapis lokalny w Hive, opcjonalnie Firebase (auth, Firestore, Storage) i analiza AI przez Cloud Function (Gemini po stronie serwera).
 
 ---
 
-## Dlaczego warto zerknąć
+## Co robi produkt
 
-- **Przepływ „skan → historia”** działa w pełni offline: uprawnienia, zdjęcie, pozycja, reverse geocoding (best effort), zapis w **Hive** jako JSON.
-- **Przejście Hero** z miniatur w historii na pełnoekranowe zdjęcie w szczegółach; **wejście na trasę szczegółów** z lekkim fade/slide (`go_router` + `AppMotion`); nagłówek photo-first i **panel szkła** z sekcjami (status, pojazd, lokalizacja, AI, prywatność, korekta, usuwanie); po udanym AI **kaskadowe ujawnienie** pól pojazdu zamiast „wszystko naraz”.
-- **Architektura pod rozwój**: feature-first, repozytorium skanów z `watchScans()`, szczegóły rekordu, publiczność rekordu, usuwanie; **Firebase Auth + Firestore + Storage + Cloud Functions** (inicjalizacja z bezpiecznym fallbackiem), ręczna synchronizacja `pendingSync`, **analiza AI na żądanie** (Gemini tylko po stronie serwera).
+- **Skan:** uprawnienia → zdjęcie z kamery → pozycja → zapis pliku i rekordu `waitingForRecognition`.
+- **Historia:** lista lokalna, filtry/sort (tylko klient), swipe (usuń / publiczność / ponów AI), skeleton przy pierwszym ładowaniu, pull-to-refresh.
+- **Szczegóły:** Hero z listy, nagłówek zdjęcia, panel szkła z `DraggableScrollableSheet`, AI na żądanie, korekta użytkownika, publiczność, usuwanie.
+- **Ustawienia:** motyw, konto, ręczny sync gdy Firebase jest skonfigurowany.
 
----
-
-## Funkcje (stan obecny)
-
-| Obszar | Co działa |
-|--------|-----------|
-| **Skan** | Prośba o kamerę + lokalizację, zdjęcie tylko z aparatu (bez galerii), zapis pliku i rekordu `waitingForRecognition` |
-| **Historia** | Lista z **filtrami i sortowaniem** (tylko klient), **swipe** (usuń / publiczność / ponów AI), lekkie animacje wejścia, **skeleton** przy pierwszym ładowaniu, odświeżanie pull-to-refresh |
-| **Szczegóły** | **Hero** z historii, duży nagłówek zdjęcia, panel szkła z **przeciąganiem** (`DraggableScrollableSheet`), status, lokalizacja, AI na żądanie, publiczność, korekta (`user_correction`), usuwanie |
-| **Ustawienia** | Motyw, konto (e-mail, wylogowanie), język (placeholder), status sync + **„Synchronizuj teraz”** (gdy Firebase działa) |
-
-### Firebase (skrót)
-
-1. Zainstaluj [FlutterFire CLI](https://firebase.flutter.dev/docs/cli/) i uruchom w katalogu projektu: `flutterfire configure` — nadpisze `lib/firebase_options.dart` oraz pliki natywne.
-2. W konsoli Firebase włącz **Authentication (e-mail/hasło)**, utwórz bazę **Firestore** i **Storage**; wdróż reguły z repo: `firebase deploy --only firestore:rules,storage` (wymaga zalogowanego `firebase-tools`).
-3. Bez poprawnej konfiguracji aplikacja startuje w trybie **offline** (lokalne skany działają; logowanie i sync z komunikatem o braku konfiguracji).
-4. **Rozpoznanie AI (Gemini)** wymaga wdrożonych **Cloud Functions** + sekretu `GEMINI_API_KEY` (patrz [`functions/README.md`](functions/README.md) i [TECHNICAL.md](TECHNICAL.md)). Klucza nie ma w aplikacji Flutter.
-
-Szczegóły techniczne, modele i kompromisy: **[TECHNICAL.md](TECHNICAL.md)**.
+Szczegóły modeli, routingu, reguł Firestore i funkcji: [TECHNICAL.md](TECHNICAL.md).
 
 ---
 
-## Szybki start
+## Firebase (skrót)
+
+1. [FlutterFire CLI](https://firebase.flutter.dev/docs/cli/) — `flutterfire configure` w katalogu projektu.
+2. W konsoli: Auth (e-mail/hasło), Firestore, Storage; reguły z repo: `firebase deploy --only firestore:rules,storage`.
+3. Bez konfiguracji: tryb degradacji (skany lokalnie; komunikaty o braku chmury).
+4. AI: wdrożone Cloud Functions + sekret `GEMINI_API_KEY` — [functions/README.md](functions/README.md).
+
+---
+
+## Uruchomienie
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-Wymagane platformy: **Android** i **iOS** (z akceptacją uprawnień do kamery i lokalizacji).
-
 ---
 
-## Jakość kodu
+## Jakość
 
 ```bash
 dart format .
@@ -53,12 +43,13 @@ flutter analyze
 flutter test
 ```
 
+W repozytorium jest workflow GitHub Actions (`ci.yml`) — ten sam zestaw kroków na `main` / PR.
+
 ---
 
-## Roadmap (wysoki poziom)
+## Dalszy rozwój (wysoki poziom)
 
-1. **AI** — tło, kolejka, ewentualnie Vertex zamiast klucza API; reguły Firestore już ograniczają zapis pól AI z klienta (`vehicle_info`, `status` końcowy itd.).
-2. **Synchronizacja** — tło, retry, konflikty, ewentualnie pełna kolejka offline.
-3. **Publiczny feed** — osobna kolekcja / reguły tylko dla przybliżonej lokalizacji (bez dokładnego GPS w danych publicznych).
+1. AI / sync w tle, kolejki, retry.
+2. Publiczny feed tylko z przybliżoną lokalizacją (bez dokładnego GPS w danych publicznych).
 
-Pull requesty mile widziane; produkt jest świadomie „portfolio-grade”: czytelny kod, uczciwe komunikaty, bez magii w UI.
+Kod trzyma się feature-first, repozytoriów i jawnych komunikatów błędów zamiast „udawania” gotowych integracji.

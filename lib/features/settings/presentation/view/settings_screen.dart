@@ -86,6 +86,7 @@ class SettingsScreen extends StatelessWidget {
                       BlocConsumer<SyncCubit, SyncState>(
                         listener: (context, syncState) {
                           final loc = AppStrings.of(context);
+                          final messenger = ScaffoldMessenger.of(context);
                           if (syncState.status == ManualSyncStatus.done &&
                               syncState.summary != null) {
                             final sum = syncState.summary!;
@@ -98,7 +99,8 @@ class SettingsScreen extends StatelessWidget {
                             } else {
                               AppHaptics.success();
                             }
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.clearSnackBars();
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text(
                                   loc.syncDoneSnack(sum.uploaded, sum.failed),
@@ -114,9 +116,10 @@ class SettingsScreen extends StatelessWidget {
                                 loc.errorSyncCloudUnavailable,
                               SyncUserError.generic => loc.errorSyncGeneric,
                             };
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(msg)));
+                            messenger.clearSnackBars();
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(msg)),
+                            );
                           }
                         },
                         builder: (context, syncState) {

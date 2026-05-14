@@ -28,21 +28,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       appBar: AppBar(title: const Text('Reset hasła')),
       body: BlocConsumer<ForgotPasswordCubit, ForgotPasswordState>(
         listener: (context, state) {
+          final messenger = ScaffoldMessenger.of(context);
           if (state.errorMessage != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+            messenger.clearSnackBars();
+            messenger.showSnackBar(
+              SnackBar(content: Text(state.errorMessage!)),
+            );
           } else if (state.infoMessage != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.infoMessage!)));
+            messenger.clearSnackBars();
+            messenger.showSnackBar(SnackBar(content: Text(state.infoMessage!)));
           }
         },
         builder: (context, state) {
           final loading = state.status == ForgotPasswordStatus.loading;
           final done = state.status == ForgotPasswordStatus.success;
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+          final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+          return SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(20, 24, 20, 24 + bottomInset),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

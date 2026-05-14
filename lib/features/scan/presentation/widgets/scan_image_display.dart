@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/ui/app_motion.dart';
+import '../../../../core/ui/shimmer/moto_shimmer.dart';
+
 /// Zdjęcie skanu: plik lokalny, potem sieć (`remoteImageUrl`), na końcu placeholder.
 ///
 /// Opcjonalny [heroTag] — ten sam co w historii i szczegółach dla [Hero].
@@ -27,10 +30,14 @@ class ScanImageDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final core = RepaintBoundary(
-      child: _ScanImageCore(
-        localImagePath: localImagePath,
-        remoteImageUrl: remoteImageUrl,
-        fit: fit,
+      child: Semantics(
+        label: 'Zdjęcie skanu',
+        image: true,
+        child: _ScanImageCore(
+          localImagePath: localImagePath,
+          remoteImageUrl: remoteImageUrl,
+          fit: fit,
+        ),
       ),
     );
     if (heroTag != null) {
@@ -63,10 +70,52 @@ class _ScanImageCore extends StatelessWidget {
           broken
               ? Icons.broken_image_outlined
               : Icons.image_not_supported_outlined,
-          size: 48,
-          color: scheme.onSurface.withValues(alpha: 0.45),
+          size: 40,
+          color: scheme.onSurface.withValues(alpha: 0.4),
         ),
       ),
+    );
+  }
+
+  Widget _fadeFrame(
+    BuildContext context,
+    Widget child,
+    int? frame,
+    bool wasSynchronouslyLoaded,
+  ) {
+    if (wasSynchronouslyLoaded) {
+      return child;
+    }
+    return AnimatedOpacity(
+      opacity: frame == null ? 0 : 1,
+      duration: AppMotion.imageFade,
+      curve: AppMotion.emphasizedDecelerate,
+      child: child,
+    );
+  }
+
+  Widget _networkLoading(BuildContext context, ImageChunkEvent? chunk) {
+    final scheme = Theme.of(context).colorScheme;
+    double? value;
+    if (chunk != null &&
+        chunk.expectedTotalBytes != null &&
+        chunk.expectedTotalBytes! > 0) {
+      value = chunk.cumulativeBytesLoaded / chunk.expectedTotalBytes!;
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        MotoShimmer(child: ColoredBox(color: scheme.surfaceContainerHigh)),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: LinearProgressIndicator(
+            minHeight: 2,
+            value: value,
+            backgroundColor: scheme.onSurface.withValues(alpha: 0.06),
+            color: scheme.primary.withValues(alpha: 0.55),
+          ),
+        ),
+      ],
     );
   }
 
@@ -74,7 +123,15 @@ class _ScanImageCore extends StatelessWidget {
   Widget build(BuildContext context) {
     final file = File(localImagePath);
     if (file.existsSync()) {
-      return Image.file(file, fit: fit, gaplessPlayback: true);
+      return Image.file(
+        file,
+        fit: fit,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          return _fadeFrame(context, child, frame, wasSynchronouslyLoaded);
+        },
+      );
     }
     final url = remoteImageUrl?.trim();
     if (url != null && url.isNotEmpty) {
@@ -82,24 +139,15 @@ class _ScanImageCore extends StatelessWidget {
         url,
         fit: fit,
         gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          return _fadeFrame(context, child, frame, wasSynchronouslyLoaded);
+        },
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) {
             return child;
           }
-          final scheme = Theme.of(context).colorScheme;
-          return ColoredBox(
-            color: scheme.surfaceContainerHigh,
-            child: Center(
-              child: SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: scheme.primary,
-                ),
-              ),
-            ),
-          );
+          return _networkLoading(context, loadingProgress);
         },
         errorBuilder: (context, error, stackTrace) =>
             _placeholder(context, broken: true),

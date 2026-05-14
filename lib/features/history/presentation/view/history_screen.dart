@@ -8,6 +8,7 @@ import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/firebase/cloud_sync_availability.dart';
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
+import '../../../../core/ui/app_shape.dart';
 import '../../../scan/domain/vehicle_scan.dart';
 import '../../../scan/presentation/widgets/scan_image_display.dart';
 import '../../../scan/presentation/widgets/scan_status_badge.dart';
@@ -65,9 +66,9 @@ class HistoryScreen extends StatelessWidget {
         listener: (context, state) {
           final m = state.transientSnackMessage;
           if (m != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(m)));
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.clearSnackBars();
+            messenger.showSnackBar(SnackBar(content: Text(m)));
             context.read<HistoryCubit>().clearTransientSnack();
           }
         },
@@ -261,8 +262,8 @@ class _HistoryEmptyNoScans extends StatelessWidget {
           children: [
             Icon(
               Icons.photo_camera_outlined,
-              size: 40,
-              color: scheme.onSurface.withValues(alpha: 0.35),
+              size: 42,
+              color: scheme.onSurface.withValues(alpha: 0.32),
             ),
             const SizedBox(height: 16),
             Text(
@@ -312,8 +313,8 @@ class _HistoryEmptyFilterContent extends StatelessWidget {
         children: [
           Icon(
             Icons.filter_list_off_rounded,
-            size: 36,
-            color: scheme.onSurface.withValues(alpha: 0.35),
+            size: 34,
+            color: scheme.onSurface.withValues(alpha: 0.32),
           ),
           const SizedBox(height: 14),
           Text(
@@ -388,7 +389,7 @@ class _HistoryScanTileCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppShape.thumbnail),
               child: SizedBox(
                 width: 72,
                 height: 72,

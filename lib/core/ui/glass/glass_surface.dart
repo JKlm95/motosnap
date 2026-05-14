@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../app_shape.dart';
+
 /// Szkło: blur + półprzezroczyste tło + subtelna obwódka i cień.
 ///
 /// Gdy [blurSigma] == 0, pomija [BackdropFilter] (tańszy fallback, wyższy kontrast).
@@ -10,7 +12,9 @@ class GlassSurface extends StatelessWidget {
     required this.child,
     super.key,
     this.blurSigma = 14,
-    this.borderRadius = const BorderRadius.all(Radius.circular(20)),
+    this.borderRadius = const BorderRadius.all(
+      Radius.circular(AppShape.glassPanel),
+    ),
     this.padding = EdgeInsets.zero,
     this.borderWidth = 1,
   });
