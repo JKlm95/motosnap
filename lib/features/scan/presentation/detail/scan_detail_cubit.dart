@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/locale/app_strings.dart';
 import '../../domain/scan_repository.dart';
 import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_analysis_exception.dart';
@@ -7,12 +8,20 @@ import '../../domain/vehicle_analysis_service.dart';
 import 'scan_detail_state.dart';
 
 class ScanDetailCubit extends Cubit<ScanDetailState> {
-  ScanDetailCubit(this._repository, this._analysis, this.scanId)
-    : super(const ScanDetailState());
+  ScanDetailCubit(
+    this._repository,
+    this._analysis,
+    this.scanId, {
+    required String uiLanguageCode,
+  }) : _uiLang = uiLanguageCode,
+       super(const ScanDetailState());
 
   final ScanRepository _repository;
   final VehicleAnalysisService _analysis;
   final String scanId;
+  final String _uiLang;
+
+  AppStrings get _s => AppStrings.fromLanguageCode(_uiLang);
 
   Future<void> load() async {
     emit(const ScanDetailState(phase: ScanDetailPhase.loading));
@@ -57,9 +66,9 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
       await _analysis.analyzeScan(scanId: scanId, languageCode: languageCode);
       await _emitReadyFromRepo();
     } on VehicleAnalysisException catch (e) {
-      await _emitReadyFromRepo(errorMessage: e.message);
+      await _emitReadyFromRepo(errorMessage: _s.aiAnalysisUserMessage(e));
     } on Object catch (e) {
-      await _emitReadyFromRepo(errorMessage: e.toString());
+      await _emitReadyFromRepo(errorMessage: _s.aiAnalysisUserMessage(e));
     }
   }
 
@@ -81,13 +90,13 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
       emit(
         ScanDetailState(phase: ScanDetailPhase.ready, scan: next, busy: false),
       );
-    } on Object catch (e) {
+    } on Object catch (_) {
       emit(
         ScanDetailState(
           phase: ScanDetailPhase.ready,
           scan: current,
           busy: false,
-          errorMessage: 'Operacja nie powiodła się: $e',
+          errorMessage: _s.errorOperationFailed,
         ),
       );
     }
@@ -104,13 +113,13 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
     try {
       await _repository.deleteScan(scanId);
       emit(const ScanDetailState(phase: ScanDetailPhase.removed));
-    } on Object catch (e) {
+    } on Object catch (_) {
       emit(
         ScanDetailState(
           phase: ScanDetailPhase.ready,
           scan: current,
           busy: false,
-          errorMessage: 'Usuwanie nie powiodło się: $e',
+          errorMessage: _s.errorDeleteFailed,
         ),
       );
     }
@@ -132,8 +141,8 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
     try {
       await _repository.updateUserCorrection(scanId, correction);
       await _emitReadyFromRepo();
-    } on Object catch (e) {
-      await _emitReadyFromRepo(errorMessage: e.toString());
+    } on Object catch (_) {
+      await _emitReadyFromRepo(errorMessage: _s.errorSaveCorrectionFailed);
     }
   }
 

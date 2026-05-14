@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,6 +79,7 @@ abstract final class AppRouter {
                 context.read<ScanRepository>(),
                 context.read<VehicleAnalysisService>(),
                 scanId,
+                uiLanguageCode: Localizations.localeOf(context).languageCode,
               )..load(),
               child: ScanDetailScreen(scanId: scanId),
             );

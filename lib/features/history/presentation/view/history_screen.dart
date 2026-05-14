@@ -6,23 +6,45 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/router/app_routes.dart';
+import '../../../../core/locale/app_strings.dart';
 import '../../../scan/domain/vehicle_scan.dart';
 import '../../../scan/domain/vehicle_scan_status.dart';
-import '../../../scan/presentation/scan_labels.dart';
 import '../cubit/history_cubit.dart';
 import '../cubit/history_state.dart';
+
+String? _historyVehicleSubtitle(VehicleScan scan, AppStrings s) {
+  final e = scan.effectiveVehicleInfo;
+  if (e == null) {
+    return null;
+  }
+  final parts = <String>[];
+  if (e.brand != null && e.brand!.trim().isNotEmpty) {
+    parts.add(e.brand!.trim());
+  }
+  if (e.model != null && e.model!.trim().isNotEmpty) {
+    parts.add(e.model!.trim());
+  }
+  if (parts.isNotEmpty) {
+    return parts.join(' ');
+  }
+  if (e.vehicleType != null) {
+    return s.vehicleType(e.vehicleType);
+  }
+  return null;
+}
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historia'),
+        title: Text(s.historyTitle),
         actions: [
           IconButton(
-            tooltip: 'Odśwież',
+            tooltip: s.historyRefreshTooltip,
             onPressed: () => context.read<HistoryCubit>().refresh(),
             icon: const Icon(Icons.refresh),
           ),
@@ -37,7 +59,7 @@ class HistoryScreen extends StatelessWidget {
             return _Error(message: state.errorMessage!);
           }
           if (state.scans.isEmpty) {
-            return const _Empty();
+            return _Empty(s: s);
           }
           return RefreshIndicator(
             onRefresh: () => context.read<HistoryCubit>().refresh(),
@@ -47,7 +69,7 @@ class HistoryScreen extends StatelessWidget {
               separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final scan = state.scans[index];
-                return _ScanTile(scan: scan);
+                return _ScanTile(s: s, scan: scan);
               },
             ),
           );
@@ -58,7 +80,9 @@ class HistoryScreen extends StatelessWidget {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty();
+  const _Empty({required this.s});
+
+  final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +90,7 @@ class _Empty extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Text(
-          'Brak zapisanych skanów.\nZrób pierwszy skan w zakładce „Skan”.',
+          s.historyEmpty,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: Theme.of(
@@ -100,22 +124,24 @@ class _Error extends StatelessWidget {
 }
 
 class _ScanTile extends StatelessWidget {
-  const _ScanTile({required this.scan});
+  const _ScanTile({required this.s, required this.scan});
 
+  final AppStrings s;
   final VehicleScan scan;
 
   @override
   Widget build(BuildContext context) {
-    final date = DateFormat.yMMMd().add_Hm().format(scan.createdAt.toLocal());
+    final date = DateFormat.yMMMd(
+      Localizations.localeOf(context).toString(),
+    ).add_Hm().format(scan.createdAt.toLocal());
     final locationLabel =
         scan.location.displayName ??
         scan.location.city ??
         '${scan.location.latitude.toStringAsFixed(3)}, '
             '${scan.location.longitude.toStringAsFixed(3)}';
     final thumb = File(scan.localImagePath);
-    final recognition = scan.effectiveVehicleInfo == null
-        ? 'Rozpoznanie oczekuje'
-        : 'Dane pojazdu dostępne';
+    final subtitle = _historyVehicleSubtitle(scan, s);
+    final recognition = s.historyVehicleSummary(subtitle);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -173,12 +199,12 @@ class _ScanTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  _StatusChip(status: scan.status),
+                  _StatusChip(s: s, status: scan.status),
                   if (scan.isPublic)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        'Publiczny',
+                        s.historyPublicBadge,
                         style: Theme.of(context).textTheme.labelSmall,
                       ),
                     ),
@@ -193,8 +219,9 @@ class _ScanTile extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
+  const _StatusChip({required this.s, required this.status});
 
+  final AppStrings s;
   final VehicleScanStatus status;
 
   @override
@@ -219,7 +246,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status.labelPl,
+        s.scanStatus(status),
         style: Theme.of(
           context,
         ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),

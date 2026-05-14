@@ -27,12 +27,14 @@ final class FirebaseVehicleAnalysisService implements VehicleAnalysisService {
     required String scanId,
     required String languageCode,
   }) async {
+    final lang = languageCode.toLowerCase().startsWith('pl') ? 'pl' : 'en';
+
     final scan = await _repository.getScan(scanId);
     if (scan == null) {
-      throw const VehicleAnalysisException('Nie znaleziono skanu.');
+      throw VehicleAnalysisException(
+        lang == 'pl' ? 'Nie znaleziono skanu.' : 'Scan not found.',
+      );
     }
-
-    final lang = languageCode.toLowerCase().startsWith('pl') ? 'pl' : 'en';
 
     final callable = _functions.httpsCallable('analyzeVehicleScan');
     try {
@@ -42,23 +44,28 @@ final class FirebaseVehicleAnalysisService implements VehicleAnalysisService {
       });
       final raw = result.data;
       if (raw is! Map) {
-        throw const VehicleAnalysisException(
-          'Nieprawidłowa odpowiedź serwera.',
+        throw VehicleAnalysisException(
+          lang == 'pl'
+              ? 'Nieprawidłowa odpowiedź serwera.'
+              : 'Invalid server response.',
         );
       }
       final data = Map<String, dynamic>.from(raw);
-      return _applyResponseAndReturn(scan, data);
-    } on FirebaseFunctionsException catch (e) {
+      return _applyResponseAndReturn(scan, data, lang: lang);
+    } on FirebaseFunctionsException {
       throw VehicleAnalysisException(
-        e.message ?? 'Błąd Cloud Function (${e.code}).',
+        lang == 'pl'
+            ? 'Połączenie z usługą rozpoznania nie powiodło się.'
+            : 'Could not reach the recognition service.',
       );
     }
   }
 
   Future<VehicleInfo> _applyResponseAndReturn(
     VehicleScan scan,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    required String lang,
+  }) async {
     final statusRaw = data['status'] as String?;
     final status = VehicleScanStatus.values.firstWhere(
       (s) => s.name == statusRaw,
@@ -95,6 +102,8 @@ final class FirebaseVehicleAnalysisService implements VehicleAnalysisService {
     if (status == VehicleScanStatus.recognized && info != null) {
       return info;
     }
-    throw VehicleAnalysisException(err ?? 'Rozpoznanie nie powiodło się.');
+    throw VehicleAnalysisException(
+      lang == 'pl' ? 'Rozpoznanie nie powiodło się.' : 'Recognition failed.',
+    );
   }
 }

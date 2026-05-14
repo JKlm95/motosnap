@@ -9,10 +9,22 @@ Opisuje architekturę, przepływ danych, modele, repozytoria, routing oraz znane
 ## Architektura
 
 - **`lib/app/`** — `AppBootstrap` (Hive, Firebase `try/catch`, wybór repozytoriów auth/sync), `MotosnapApp`, `go_router` z redirectem auth + `RouterRefreshBridge`, motyw.
-- **`lib/core/`** — usługi infrastrukturalne: GPS, geokodowanie, aparat, zapis plików, uprawnienia, Hive, abstrakcja kolejki chmury (`CloudScanSyncService`), wynik ręcznego sync (`SyncSummary`), init Firebase (`FirebaseInitializer`, `CloudSyncAvailability`).
+- **`lib/core/`** — usługi infrastrukturalne: GPS, geokodowanie, aparat, zapis plików, uprawnienia, Hive, **etykiety PL/EN MVP** ([`AppStrings`](lib/core/locale/app_strings.dart)), abstrakcja kolejki chmury (`CloudScanSyncService`), wynik ręcznego sync (`SyncSummary`), init Firebase (`FirebaseInitializer`, `CloudSyncAvailability`).
 - **`lib/features/`** — `splash` (hydracja sesji), `auth` (Firebase / offline), `scan` (domena, repozytorium, sync do Firestore+Storage, UI), `history`, `settings`.
 
 Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach core; widgety/Cubit ograniczają się do stanu UI i wywołań repozytorium.
+
+---
+
+## Teksty UI i język (MVP)
+
+- [`AppStrings`](lib/core/locale/app_strings.dart): `AppStrings.of(context)` bazuje na `Localizations.localeOf` (język systemu / `supportedLocales`); `AppStrings.fromLanguageCode` używane w Cubitach bez `BuildContext` (np. skan, szczegóły z `uiLanguageCode` z routera).
+- Zakres: typ pojazdu (`VehicleType`), status skanu, etykiety sekcji (skan, historia, szczegóły, korekta, ustawienia/sync), komunikaty błędów użytkownika (bez surowych treści z Firebase/Gemini w snackbarach / banerach).
+- [`MotosnapApp`](lib/app/motosnap_app.dart): `flutter_localizations` (`GlobalMaterialLocalizations` itd.) + `supportedLocales: en`, `pl`.
+- Sync: [`SyncState.userError`](lib/features/settings/presentation/cubit/sync_state.dart) (`SyncUserError`) zamiast przekazywania `e.toString()` do UI; szczegóły w `debugPrint` w [`SyncCubit`](lib/features/settings/presentation/cubit/sync_cubit.dart).
+- Uprawnienia: [`ScanPermissionException`](lib/core/permissions/scan_permission_exception.dart) z [`ScanPermissionDeniedKind`](lib/core/permissions/scan_permission_denied_kind.dart) — mapowanie na tekst w [`ScanCubit`](lib/features/scan/presentation/cubit/scan_cubit.dart) przez `AppStrings`.
+- Formularz korekty: [`VehicleCorrectionPrefill`](lib/features/scan/presentation/detail/vehicle_correction_prefill.dart) — prefill z `effectiveVehicleInfo` / korekty.
+- **Migracja docelowa:** `flutter gen_l10n` + pliki ARB, trwały wybór języka w ustawieniach (obecnie placeholder + podpis że UI podąża za systemem).
 
 ---
 
@@ -137,7 +149,8 @@ Metody:
 ## Testy
 
 - `test/vehicle_scan_test.dart` — roundtrip JSON (schema 4), `user_correction` + `effectiveVehicleInfo`, migracja legacy.
-- `test/vehicle_scan_remote_merger_test.dart` — strategia scalania po syncu (ochrona lokalnego `recognized`, nadpisanie `vehicle_info` z chmury, merge `user_correction`).
+- `test/app_strings_test.dart` — mapowanie typu pojazdu i statusu (PL/EN).
+- `test/vehicle_correction_prefill_test.dart` — prefill formularza korekty z `effectiveVehicleInfo` / `userCorrection`.
 - `test/scan_repository_test.dart` — integracja repozytorium z Hive + stub pozycji oraz widget historii (pusty stan).
 - `test/auth_route_resolution_test.dart` — redirecty auth (`go_router`).
 - `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu).

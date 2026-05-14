@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/locale/app_strings.dart';
 import '../../domain/vehicle_scan.dart';
 import '../cubit/scan_cubit.dart';
 import '../cubit/scan_state.dart';
-import '../scan_labels.dart';
 
 class ScanScreen extends StatelessWidget {
   const ScanScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
+    final lang = Localizations.localeOf(context).languageCode;
     return BlocBuilder<ScanCubit, ScanState>(
       builder: (context, state) {
         final busy =
@@ -19,14 +21,14 @@ class ScanScreen extends StatelessWidget {
             state.phase == ScanFlowPhase.saving;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Skan')),
+          appBar: AppBar(title: Text(s.scanTabTitle)),
           body: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Zrób zdjęcie z aparatu. Lokalizacja GPS jest wymagana — bez niej skan nie zostanie zapisany.',
+                  s.scanIntro,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(
                       context,
@@ -36,10 +38,11 @@ class ScanScreen extends StatelessWidget {
                 const SizedBox(height: 20),
                 if (state.phase == ScanFlowPhase.success &&
                     state.savedScan != null)
-                  _SuccessCard(scan: state.savedScan!)
+                  _SuccessCard(s: s, scan: state.savedScan!)
                 else if (state.errorMessage != null)
                   _ErrorCard(
                     message: state.errorMessage!,
+                    dismissLabel: s.ok,
                     onDismiss: () => context.read<ScanCubit>().clearTransient(),
                   ),
                 if (state.phase == ScanFlowPhase.success ||
@@ -70,21 +73,23 @@ class ScanScreen extends StatelessWidget {
                   child: FilledButton(
                     onPressed: busy
                         ? null
-                        : () => context.read<ScanCubit>().captureAndSaveScan(),
+                        : () => context.read<ScanCubit>().captureAndSaveScan(
+                            lang,
+                          ),
                     child: busy
                         ? const SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Skanuj'),
+                        : Text(s.scanButton),
                   ),
                 ),
                 if (state.phase == ScanFlowPhase.success) ...[
                   const SizedBox(height: 12),
                   OutlinedButton(
                     onPressed: () => context.read<ScanCubit>().clearTransient(),
-                    child: const Text('Kolejny skan'),
+                    child: Text(s.nextScan),
                   ),
                 ],
               ],
@@ -97,8 +102,9 @@ class ScanScreen extends StatelessWidget {
 }
 
 class _SuccessCard extends StatelessWidget {
-  const _SuccessCard({required this.scan});
+  const _SuccessCard({required this.s, required this.scan});
 
+  final AppStrings s;
   final VehicleScan scan;
 
   @override
@@ -110,16 +116,16 @@ class _SuccessCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Zapisano lokalnie',
+              s.scanSavedLocally,
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
-            Text('Status: ${scan.status.labelPl}'),
+            Text(s.scanSavedStatusLine(s.scanStatus(scan.status))),
             const SizedBox(height: 6),
             Text(
-              'Rozpoznanie AI nie zostało jeszcze uruchomione — to tylko lokalny rekord.',
+              s.scanAiPendingHint,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(
                   context,
@@ -134,9 +140,14 @@ class _SuccessCard extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.message, required this.onDismiss});
+  const _ErrorCard({
+    required this.message,
+    required this.dismissLabel,
+    required this.onDismiss,
+  });
 
   final String message;
+  final String dismissLabel;
   final VoidCallback onDismiss;
 
   @override
@@ -157,7 +168,10 @@ class _ErrorCard extends StatelessWidget {
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(onPressed: onDismiss, child: const Text('OK')),
+              child: TextButton(
+                onPressed: onDismiss,
+                child: Text(dismissLabel),
+              ),
             ),
           ],
         ),

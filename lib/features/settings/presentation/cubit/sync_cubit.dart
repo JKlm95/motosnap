@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../scan/domain/pending_scan_sync.dart';
@@ -16,7 +17,7 @@ class SyncCubit extends Cubit<SyncState> {
       emit(
         const SyncState(
           status: ManualSyncStatus.error,
-          errorMessage: 'Synchronizacja z chmurą jest niedostępna (Firebase).',
+          userError: SyncUserError.cloudDisabled,
         ),
       );
       return;
@@ -26,9 +27,13 @@ class SyncCubit extends Cubit<SyncState> {
     try {
       final summary = await cloud.syncAllPending(_scans);
       emit(SyncState(status: ManualSyncStatus.done, summary: summary));
-    } on Object catch (e) {
+    } on Object catch (e, st) {
+      debugPrint('SyncCubit.syncNow failed: $e\n$st');
       emit(
-        SyncState(status: ManualSyncStatus.error, errorMessage: e.toString()),
+        const SyncState(
+          status: ManualSyncStatus.error,
+          userError: SyncUserError.generic,
+        ),
       );
     }
   }

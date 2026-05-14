@@ -1,7 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/permissions/scan_permissions_service.dart';
+import '../../../../core/locale/app_strings.dart';
 import '../../../../core/media/camera_capture_service.dart';
+import '../../../../core/permissions/scan_permissions_service.dart';
 import '../../domain/scan_repository.dart';
 import 'scan_state.dart';
 
@@ -19,12 +20,17 @@ class ScanCubit extends Cubit<ScanState> {
   final CameraCaptureService _camera;
   final ScanPermissionsService _permissions;
 
-  Future<void> captureAndSaveScan() async {
+  Future<void> captureAndSaveScan(String uiLanguageCode) async {
+    final s = AppStrings.fromLanguageCode(uiLanguageCode);
     emit(const ScanState(phase: ScanFlowPhase.requestingPermissions));
     try {
       await _permissions.ensureCameraAndWhenInUseLocation();
     } on ScanPermissionException catch (e) {
-      emit(ScanState(phase: ScanFlowPhase.error, errorMessage: e.message));
+      final msg = switch (e.denied) {
+        ScanPermissionDeniedKind.locationWhenInUse => s.errorLocationPermission,
+        ScanPermissionDeniedKind.camera => s.errorCameraPermission,
+      };
+      emit(ScanState(phase: ScanFlowPhase.error, errorMessage: msg));
       return;
     }
 
@@ -32,10 +38,7 @@ class ScanCubit extends Cubit<ScanState> {
     final file = await _camera.capturePhoto();
     if (file == null) {
       emit(
-        const ScanState(
-          phase: ScanFlowPhase.idle,
-          errorMessage: 'Anulowano zdjęcie.',
-        ),
+        ScanState(phase: ScanFlowPhase.idle, errorMessage: s.photoCancelled),
       );
       return;
     }
@@ -45,7 +48,9 @@ class ScanCubit extends Cubit<ScanState> {
       final scan = await _repository.createScan(capturedPhoto: file);
       emit(ScanState(phase: ScanFlowPhase.success, savedScan: scan));
     } on Object catch (e) {
-      emit(ScanState(phase: ScanFlowPhase.error, errorMessage: _mapError(e)));
+      emit(
+        ScanState(phase: ScanFlowPhase.error, errorMessage: _mapError(s, e)),
+      );
     }
   }
 
@@ -53,14 +58,14 @@ class ScanCubit extends Cubit<ScanState> {
     emit(const ScanState());
   }
 
-  String _mapError(Object e) {
+  String _mapError(AppStrings s, Object e) {
     final text = e.toString();
     if (text.contains('LocationServiceDisabled')) {
-      return 'Włącz usługi lokalizacji — GPS jest wymagany.';
+      return s.errorLocationServiceDisabled;
     }
     if (text.contains('LocationPermissionDenied')) {
-      return 'Zezwól na lokalizację — GPS jest wymagany.';
+      return s.errorLocationPermission;
     }
-    return 'Nie udało się zapisać skanu. Spróbuj ponownie.';
+    return s.errorScanSaveGeneric;
   }
 }

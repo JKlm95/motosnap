@@ -13,7 +13,7 @@ void main() {
     final cubit = SyncCubit(null, _FakeRepo());
     await cubit.syncNow();
     expect(cubit.state.status, ManualSyncStatus.error);
-    expect(cubit.state.errorMessage, isNotNull);
+    expect(cubit.state.userError, SyncUserError.cloudDisabled);
     await cubit.close();
   });
 

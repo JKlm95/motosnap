@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/app_routes.dart';
 import '../../../../core/firebase/cloud_sync_availability.dart';
+import '../../../../core/locale/app_strings.dart';
 import '../../../auth/domain/auth_repository.dart';
 import '../cubit/settings_cubit.dart';
 import '../cubit/settings_state.dart';
@@ -15,19 +16,20 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     final auth = context.read<AuthRepository>();
     final email = auth.currentUserEmail ?? '—';
     final cloudOk = context.read<CloudSyncAvailability>().available;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ustawienia')),
+      appBar: AppBar(title: Text(s.settingsTitle)),
       body: BlocBuilder<SettingsCubit, SettingsState>(
         builder: (context, state) {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               Text(
-                'Konto',
+                s.settingsAccount,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(
                     context,
@@ -39,11 +41,11 @@ class SettingsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
-                      title: const Text('E-mail'),
+                      title: Text(s.settingsEmail),
                       subtitle: Text(email),
                     ),
                     ListTile(
-                      title: const Text('Wyloguj'),
+                      title: Text(s.settingsSignOut),
                       leading: const Icon(Icons.logout_rounded),
                       onTap: () async {
                         await auth.signOut();
@@ -57,7 +59,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                'Synchronizacja',
+                s.settingsSyncSection,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(
                     context,
@@ -73,29 +75,35 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       Text(
                         cloudOk
-                            ? 'Firebase gotowy — skany z `pendingSync` możesz wysłać ręcznie.'
-                            : 'Tryb bez Firebase (np. brak `flutterfire configure`). Skany zostają lokalnie.',
+                            ? s.settingsSyncReadyBody
+                            : s.settingsSyncOfflineBody,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 12),
                       BlocConsumer<SyncCubit, SyncState>(
                         listener: (context, syncState) {
+                          final loc = AppStrings.of(context);
                           if (syncState.status == ManualSyncStatus.done &&
                               syncState.summary != null) {
-                            final s = syncState.summary!;
+                            final sum = syncState.summary!;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Synchronizacja: OK ${s.uploaded}, błędy ${s.failed}',
+                                  loc.syncDoneSnack(sum.uploaded, sum.failed),
                                 ),
                               ),
                             );
                           } else if (syncState.status ==
                                   ManualSyncStatus.error &&
-                              syncState.errorMessage != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(syncState.errorMessage!)),
-                            );
+                              syncState.userError != null) {
+                            final msg = switch (syncState.userError!) {
+                              SyncUserError.cloudDisabled =>
+                                loc.errorSyncCloudUnavailable,
+                              SyncUserError.generic => loc.errorSyncGeneric,
+                            };
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text(msg)));
                           }
                         },
                         builder: (context, syncState) {
@@ -113,7 +121,7 @@ class SettingsScreen extends StatelessWidget {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text('Synchronizuj teraz'),
+                                : Text(s.settingsSyncNow),
                           );
                         },
                       ),
@@ -123,7 +131,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                'Język',
+                s.settingsLanguageSection,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(
                     context,
@@ -133,15 +141,15 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Card(
                 child: ListTile(
-                  title: const Text('Język aplikacji'),
-                  subtitle: const Text('Wkrótce: wybór pl / en'),
+                  title: Text(s.settingsLanguageTitle),
+                  subtitle: Text(s.settingsLanguageSubtitle),
                   leading: const Icon(Icons.language_rounded),
                   onTap: () {},
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                'Wygląd',
+                s.settingsAppearance,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(
                     context,
@@ -156,29 +164,31 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Motyw',
+                        s.settingsTheme,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
                       SegmentedButton<ThemeMode>(
                         showSelectedIcon: false,
-                        segments: const [
+                        segments: [
                           ButtonSegment(
                             value: ThemeMode.system,
-                            label: Text('System'),
+                            label: Text(s.themeSystem),
                           ),
                           ButtonSegment(
                             value: ThemeMode.light,
-                            label: Text('Jasny'),
+                            label: Text(s.themeLight),
                           ),
                           ButtonSegment(
                             value: ThemeMode.dark,
-                            label: Text('Ciemny'),
+                            label: Text(s.themeDark),
                           ),
                         ],
                         selected: {state.themeMode},
                         onSelectionChanged: (selection) {
-                          if (selection.isEmpty) return;
+                          if (selection.isEmpty) {
+                            return;
+                          }
                           context.read<SettingsCubit>().setThemeMode(
                             selection.first,
                           );

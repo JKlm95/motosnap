@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/locale/app_strings.dart';
 import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_type.dart';
+import 'vehicle_correction_prefill.dart';
 
 Future<void> showVehicleUserCorrectionSheet({
   required BuildContext context,
@@ -47,23 +49,24 @@ class _VehicleUserCorrectionFormState
   @override
   void initState() {
     super.initState();
-    final uc = widget.scan.userCorrection;
-    final ai = widget.scan.vehicleInfo;
-    _type = uc?.vehicleType ?? ai?.vehicleType ?? VehicleType.unknown;
-    _brand = TextEditingController(text: uc?.brand ?? ai?.brand ?? '');
-    _model = TextEditingController(text: uc?.model ?? ai?.model ?? '');
+    _type = VehicleCorrectionPrefill.vehicleType(widget.scan);
+    _brand = TextEditingController(
+      text: VehicleCorrectionPrefill.brand(widget.scan),
+    );
+    _model = TextEditingController(
+      text: VehicleCorrectionPrefill.model(widget.scan),
+    );
     _generation = TextEditingController(
-      text: uc?.generation ?? ai?.generation ?? '',
+      text: VehicleCorrectionPrefill.generation(widget.scan),
     );
     _years = TextEditingController(
-      text: uc?.productionYears ?? ai?.productionYears ?? '',
+      text: VehicleCorrectionPrefill.productionYears(widget.scan),
     );
     _engines = TextEditingController(
-      text: (uc?.possibleEngines ?? ai?.possibleEngines ?? const <String>[])
-          .join(', '),
+      text: VehicleCorrectionPrefill.possibleEngines(widget.scan).join(', '),
     );
     _description = TextEditingController(
-      text: uc?.shortDescription ?? ai?.shortDescription ?? '',
+      text: VehicleCorrectionPrefill.shortDescription(widget.scan),
     );
   }
 
@@ -118,22 +121,28 @@ class _VehicleUserCorrectionFormState
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Popraw wynik', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              s.correctionSheetTitle,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 16),
             DropdownMenu<VehicleType>(
               key: ValueKey<VehicleType>(_type),
               initialSelection: _type,
-              label: const Text('Typ pojazdu'),
+              label: Text(s.correctionVehicleTypeLabel),
               dropdownMenuEntries: VehicleType.values
                   .map(
-                    (t) =>
-                        DropdownMenuEntry<VehicleType>(value: t, label: t.name),
+                    (t) => DropdownMenuEntry<VehicleType>(
+                      value: t,
+                      label: s.vehicleType(t),
+                    ),
                   )
                   .toList(),
               onSelected: (v) {
@@ -145,34 +154,38 @@ class _VehicleUserCorrectionFormState
             const SizedBox(height: 12),
             TextField(
               controller: _brand,
-              decoration: const InputDecoration(labelText: 'Marka'),
+              decoration: InputDecoration(labelText: s.fieldBrand),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _model,
-              decoration: const InputDecoration(labelText: 'Model'),
+              decoration: InputDecoration(labelText: s.fieldModel),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _generation,
-              decoration: const InputDecoration(labelText: 'Generacja'),
+              decoration: InputDecoration(labelText: s.fieldGeneration),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _years,
-              decoration: const InputDecoration(labelText: 'Lata produkcji'),
+              decoration: InputDecoration(labelText: s.fieldProductionYears),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _engines,
-              decoration: const InputDecoration(
-                labelText: 'Silniki (oddzielone przecinkiem)',
+              decoration: InputDecoration(
+                labelText: s.correctionEnginesLabel,
+                helperText: s.correctionEnginesHelper,
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _description,
-              decoration: const InputDecoration(labelText: 'Krótki opis'),
+              decoration: InputDecoration(
+                labelText: s.correctionShortDescription,
+                helperText: s.correctionShortDescriptionHelper,
+              ),
               maxLines: 3,
             ),
             const SizedBox(height: 20),
@@ -184,7 +197,7 @@ class _VehicleUserCorrectionFormState
                       width: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Zapisz korektę'),
+                  : Text(s.correctionSave),
             ),
           ],
         ),

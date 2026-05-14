@@ -4,12 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/locale/app_strings.dart';
 import '../../domain/user_vehicle_correction.dart';
 import '../../domain/vehicle_info.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
-import '../../domain/vehicle_type.dart';
-import '../scan_labels.dart';
 import 'scan_detail_cubit.dart';
 import 'scan_detail_state.dart';
 import 'vehicle_user_correction_sheet.dart';
@@ -21,6 +20,7 @@ class ScanDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
     return BlocConsumer<ScanDetailCubit, ScanDetailState>(
       listenWhen: (prev, next) =>
           prev.phase != next.phase && next.phase == ScanDetailPhase.removed,
@@ -31,14 +31,15 @@ class ScanDetailScreen extends StatelessWidget {
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Szczegóły skanu')),
+          appBar: AppBar(title: Text(s.scanDetailsTitle)),
           body: switch (state.phase) {
             ScanDetailPhase.loading => const Center(
               child: CircularProgressIndicator(),
             ),
-            ScanDetailPhase.notFound => const _NotFound(),
+            ScanDetailPhase.notFound => _NotFound(s: s),
             ScanDetailPhase.removed => const SizedBox.shrink(),
             ScanDetailPhase.ready => _DetailBody(
+              s: s,
               scan: state.scan!,
               busy: state.busy,
               errorMessage: state.errorMessage,
@@ -51,7 +52,9 @@ class ScanDetailScreen extends StatelessWidget {
 }
 
 class _NotFound extends StatelessWidget {
-  const _NotFound();
+  const _NotFound({required this.s});
+
+  final AppStrings s;
 
   @override
   Widget build(BuildContext context) {
@@ -61,41 +64,14 @@ class _NotFound extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Nie znaleziono skanu.'),
+            Text(s.scanNotFound),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => context.pop(),
-              child: const Text('Wróć'),
-            ),
+            FilledButton(onPressed: () => context.pop(), child: Text(s.back)),
           ],
         ),
       ),
     );
   }
-}
-
-String _vehicleTypeLabelPl(VehicleType? t) {
-  if (t == null) {
-    return '—';
-  }
-  return switch (t) {
-    VehicleType.car => 'Samochód osobowy',
-    VehicleType.motorcycle => 'Motocykl',
-    VehicleType.truck => 'Ciężarówka',
-    VehicleType.bus => 'Autobus',
-    VehicleType.van => 'Van / dostawczy',
-    VehicleType.aircraft => 'Statek powietrzny',
-    VehicleType.boat => 'Łódź / statek',
-    VehicleType.train => 'Pociąg / szynowy',
-    VehicleType.agricultural => 'Rolniczy',
-    VehicleType.construction => 'Budowlany',
-    VehicleType.military => 'Wojskowy',
-    VehicleType.emergency => 'Służby ratunkowe',
-    VehicleType.bicycle => 'Rower',
-    VehicleType.scooter => 'Hulajnoga / skuter',
-    VehicleType.other => 'Inny',
-    VehicleType.unknown => 'Nieznany',
-  };
 }
 
 bool _isSyncedToCloud(VehicleScan scan) {
@@ -105,11 +81,13 @@ bool _isSyncedToCloud(VehicleScan scan) {
 
 class _DetailBody extends StatelessWidget {
   const _DetailBody({
+    required this.s,
     required this.scan,
     required this.busy,
     required this.errorMessage,
   });
 
+  final AppStrings s;
   final VehicleScan scan;
   final bool busy;
   final String? errorMessage;
@@ -150,21 +128,21 @@ class _DetailBody extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              scan.status.labelPl,
+              s.scanStatus(scan.status),
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Text(
-              'Lokalizacja: $locationLabel',
+              '${s.locationPrefix}: $locationLabel',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (synced)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'Zsynchronizowano z chmurą',
+                  s.syncedToCloud,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                   ),
@@ -174,7 +152,7 @@ class _DetailBody extends StatelessWidget {
                 scan.status == VehicleScanStatus.waitingForRecognition) ...[
               const SizedBox(height: 16),
               Text(
-                'Zsynchronizuj skan przed analizą AI (Ustawienia → Synchronizuj teraz).',
+                s.syncBeforeAiHint,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(
                     context,
@@ -191,7 +169,7 @@ class _DetailBody extends StatelessWidget {
                         localeLang,
                       ),
                 icon: const Icon(Icons.auto_awesome_rounded),
-                label: const Text('Analizuj przez AI'),
+                label: Text(s.analyzeWithAi),
               ),
             ],
             if (scan.status == VehicleScanStatus.recognized ||
@@ -208,7 +186,7 @@ class _DetailBody extends StatelessWidget {
                             .saveUserCorrection(c),
                       ),
                 icon: const Icon(Icons.edit_outlined),
-                label: const Text('Popraw wynik'),
+                label: Text(s.correctResult),
               ),
             ],
             if ((scan.status == VehicleScanStatus.recognized ||
@@ -219,7 +197,7 @@ class _DetailBody extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    'Poprawione przez użytkownika',
+                    s.correctedByUserLabel,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.w600,
@@ -227,40 +205,36 @@ class _DetailBody extends StatelessWidget {
                   ),
                 ),
               Text(
-                scan.status == VehicleScanStatus.recognized
-                    ? 'Rozpoznanie'
-                    : 'Dane pojazdu (korekta / ostatnia znana)',
+                s.vehicleInformationSection,
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               const SizedBox(height: 8),
-              _VehicleInfoCard(info: scan.effectiveVehicleInfo!),
+              _VehicleInfoCard(s: s, info: scan.effectiveVehicleInfo!),
               if (scan.userCorrection != null && scan.vehicleInfo != null) ...[
                 const SizedBox(height: 8),
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   title: Text(
-                    'Oryginalny wynik AI',
+                    s.originalAiResult,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  children: [_VehicleInfoCard(info: scan.vehicleInfo!)],
+                  children: [_VehicleInfoCard(s: s, info: scan.vehicleInfo!)],
                 ),
               ],
             ],
             if (scan.status == VehicleScanStatus.failed) ...[
               const SizedBox(height: 16),
               Text(
-                'Rozpoznanie nie powiodło się.',
+                s.recognitionFailedTitle,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(context).colorScheme.error,
                 ),
               ),
-              if (scan.recognitionError != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  scan.recognitionError!,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+              const SizedBox(height: 6),
+              Text(
+                s.recognitionFailedNoDetails,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               if (synced) ...[
                 const SizedBox(height: 12),
                 FilledButton.tonal(
@@ -269,7 +243,7 @@ class _DetailBody extends StatelessWidget {
                       : () => context.read<ScanDetailCubit>().runAiAnalysis(
                           localeLang,
                         ),
-                  child: const Text('Spróbuj ponownie'),
+                  child: Text(s.tryAgain),
                 ),
               ],
             ],
@@ -283,7 +257,7 @@ class _DetailBody extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () => context.read<ScanDetailCubit>().clearError(),
-                child: const Text('Zamknij komunikat'),
+                child: Text(s.closeMessage),
               ),
             ],
           ],
@@ -299,11 +273,7 @@ class _DetailBody extends StatelessWidget {
                 onPressed: busy
                     ? null
                     : () => context.read<ScanDetailCubit>().togglePublic(),
-                child: Text(
-                  scan.isPublic
-                      ? 'Ustaw jako prywatny'
-                      : 'Ustaw jako publiczny',
-                ),
+                child: Text(scan.isPublic ? s.setPrivate : s.setPublic),
               ),
               const SizedBox(height: 10),
               FilledButton(
@@ -316,28 +286,29 @@ class _DetailBody extends StatelessWidget {
                     : () async {
                         final ok = await showDialog<bool>(
                           context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Usunąć skan?'),
-                            content: const Text(
-                              'Zdjęcie i rekord zostaną usunięte z tego urządzenia.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Anuluj'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Usuń'),
-                              ),
-                            ],
-                          ),
+                          builder: (ctx) {
+                            final d = AppStrings.of(ctx);
+                            return AlertDialog(
+                              title: Text(d.deleteScanConfirmTitle),
+                              content: Text(d.deleteScanConfirmBody),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(d.cancel),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text(d.delete),
+                                ),
+                              ],
+                            );
+                          },
                         );
                         if (ok == true && context.mounted) {
                           await context.read<ScanDetailCubit>().delete();
                         }
                       },
-                child: const Text('Usuń skan'),
+                child: Text(s.deleteScan),
               ),
             ],
           ),
@@ -354,8 +325,9 @@ class _DetailBody extends StatelessWidget {
 }
 
 class _VehicleInfoCard extends StatelessWidget {
-  const _VehicleInfoCard({required this.info});
+  const _VehicleInfoCard({required this.s, required this.info});
 
+  final AppStrings s;
   final VehicleInfo info;
 
   @override
@@ -366,23 +338,27 @@ class _VehicleInfoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _row(context, 'Typ', _vehicleTypeLabelPl(info.vehicleType)),
-            _row(context, 'Marka', info.brand ?? '—'),
-            _row(context, 'Model', info.model ?? '—'),
-            _row(context, 'Generacja', info.generation ?? '—'),
-            _row(context, 'Lata produkcji', info.productionYears ?? '—'),
+            _row(context, s.fieldType, s.vehicleType(info.vehicleType)),
+            _row(context, s.fieldBrand, info.brand ?? s.emDash),
+            _row(context, s.fieldModel, info.model ?? s.emDash),
+            _row(context, s.fieldGeneration, info.generation ?? s.emDash),
+            _row(
+              context,
+              s.fieldProductionYears,
+              info.productionYears ?? s.emDash,
+            ),
             if (info.possibleEngines.isNotEmpty)
               _row(
                 context,
-                'Silniki (propozycje)',
+                s.fieldEnginesHint,
                 info.possibleEngines.join(', '),
               ),
             _row(
               context,
-              'Pewność',
+              s.fieldConfidence,
               info.confidence != null
                   ? '${(info.confidence! * 100).toStringAsFixed(0)} %'
-                  : '—',
+                  : s.emDash,
             ),
             if (info.shortDescription != null &&
                 info.shortDescription!.isNotEmpty) ...[
