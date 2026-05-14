@@ -1,5 +1,7 @@
 # MotoSnap
 
+[![Flutter CI](https://github.com/JKlm95/motosnap/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JKlm95/motosnap/actions/workflows/ci.yml)
+
 **MotoSnap** to mobilny MVP do dokumentowania pojazdów w terenie: jedno dotknięcie, zdjęcie z **aparatu**, **obowiązkowy GPS** i zapis **lokalnej historii** — gotowe pod dalszą synchronizację z chmurą i rozpoznanie AI, bez udawania gotowych wyników.
 
 ---

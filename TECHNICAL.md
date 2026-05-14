@@ -82,6 +82,48 @@ Metody:
 
 ---
 
+## CI (GitHub Actions)
+
+Plik: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+### Triggery
+
+- **push** do gałęzi `main` — każdy merge musi przejść pipeline zanim badge na README odzwierciedli stan repozytorium.
+- **pull_request** do `main` — ten sam zestaw kroków na gałęzi źródłowej PR; zapobiega regresjom przed merge.
+
+### Kroki i uzasadnienie
+
+| Krok | Cel |
+|------|-----|
+| **Checkout** | Spójna kopia repo z commita/PR. |
+| **Java 17 (Temurin)** | Wymóg Gradle / Android toolchain przy `flutter build apk`; wersja zgodna z typową konfiguracją Flutter 3.x. |
+| **Cache Gradle** (`~/.gradle/caches`, `wrapper`) | Skraca czas joba — budowanie APK bez ponownego pobierania zależności Gradle przy niezmienionych plikach Android. |
+| **Flutter stable + cache** (`subosito/flutter-action`, `cache: true`) | Stabilny kanał SDK + cache pub (`PUB_CACHE`), żeby `pub get` nie był bottleneckiem na każdym uruchomieniu. |
+| **`flutter pub get`** | Deterministyczna instalacja zależności z `pubspec.lock`. |
+| **`dart format --set-exit-if-changed .`** | Twardy gate stylu — brak „cichego” formatowania w CI; niezgodność kończy job kodem wyjścia ≠ 0. |
+| **`flutter analyze`** | Blokuje merge przy błędach / ostrzeżeniach skonfigurowanych w `analysis_options.yaml`. |
+| **`flutter test`** | Regresje jednostkowe/widgetowe bez uruchamiania emulatora. |
+| **`flutter build apk --debug`** | Weryfikacja, że projekt **kompiluje się** w konfiguracji Android (Gradle, manifest, pluginy natywne); debug wystarcza na CI (szybsze, bez keystore). |
+
+### Zachowanie przy błędach
+
+Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd przerywa job (format, analyze, test lub APK).
+
+### Concurrency
+
+`cancel-in-progress` dla tej samej grupy (np. ten sam PR przy kolejnych pushach) — mniej kolejek, świeższy wynik na ostatnim commicie.
+
+### Rozszerzenia na później
+
+- **iOS** — `flutter build ios --no-codesign` na `macos-latest` (osobny job macOS lub maciej w macierzy).
+- **Sztywne pinowanie SDK** — pole `flutter-version` w `flutter-action` albo FVM + odczyt wersji z repo.
+- **Sekrety / Firebase** — joby z `google-services.json` z GitHub Secrets (tylko gdy pojawi się integracja).
+- **coverage** — `flutter test --coverage` + upload do Codecov / strona HTML artefaktu.
+- **dependency review / Dependabot** — bezpieczeństwo łańcucha zależności.
+- **Szeregowanie jobów** — np. szybki job „analyze + test” i wolniejszy „APK” z `needs:` dla czytelniejszej diagnostyki.
+
+---
+
 ## Dług techniczny / TODO
 
 1. **Freezed / `json_serializable`** — celowo wyłączone do czasu stabilnego `build_runner` w łańcuchu zależności; DTO są ręczne.
