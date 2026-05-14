@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/vehicle_info.dart';
 import '../../domain/vehicle_scan.dart';
+import '../../domain/vehicle_scan_status.dart';
+import '../../domain/vehicle_type.dart';
 import '../scan_labels.dart';
 import 'scan_detail_cubit.dart';
 import 'scan_detail_state.dart';
@@ -69,6 +72,35 @@ class _NotFound extends StatelessWidget {
   }
 }
 
+String _vehicleTypeLabelPl(VehicleType? t) {
+  if (t == null) {
+    return '—';
+  }
+  return switch (t) {
+    VehicleType.car => 'Samochód osobowy',
+    VehicleType.motorcycle => 'Motocykl',
+    VehicleType.truck => 'Ciężarówka',
+    VehicleType.bus => 'Autobus',
+    VehicleType.van => 'Van / dostawczy',
+    VehicleType.aircraft => 'Statek powietrzny',
+    VehicleType.boat => 'Łódź / statek',
+    VehicleType.train => 'Pociąg / szynowy',
+    VehicleType.agricultural => 'Rolniczy',
+    VehicleType.construction => 'Budowlany',
+    VehicleType.military => 'Wojskowy',
+    VehicleType.emergency => 'Służby ratunkowe',
+    VehicleType.bicycle => 'Rower',
+    VehicleType.scooter => 'Hulajnoga / skuter',
+    VehicleType.other => 'Inny',
+    VehicleType.unknown => 'Nieznany',
+  };
+}
+
+bool _isSyncedToCloud(VehicleScan scan) {
+  return !scan.pendingSync &&
+      (scan.remoteImageUrl != null && scan.remoteImageUrl!.isNotEmpty);
+}
+
 class _DetailBody extends StatelessWidget {
   const _DetailBody({
     required this.scan,
@@ -88,10 +120,15 @@ class _DetailBody extends StatelessWidget {
         '${scan.location.latitude.toStringAsFixed(4)}, '
             '${scan.location.longitude.toStringAsFixed(4)}';
 
+    final synced = _isSyncedToCloud(scan);
+    final canAnalyze =
+        scan.status == VehicleScanStatus.waitingForRecognition && synced;
+    final localeLang = Localizations.localeOf(context).languageCode;
+
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 200),
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
@@ -121,39 +158,76 @@ class _DetailBody extends StatelessWidget {
               'Lokalizacja: $locationLabel',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            if (scan.vehicleInfo != null) ...[
+            if (synced)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Zsynchronizowano z chmurą',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            if (!synced &&
+                scan.status == VehicleScanStatus.waitingForRecognition) ...[
               const SizedBox(height: 16),
               Text(
-                'Dane pojazdu',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                [
-                  scan.vehicleInfo!.brand,
-                  scan.vehicleInfo!.model,
-                ].whereType<String>().where((e) => e.isNotEmpty).join(' '),
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ] else ...[
-              const SizedBox(height: 16),
-              Text(
-                'Rozpoznanie: oczekuje (brak danych z AI).',
+                'Zsynchronizuj skan przed analizą AI (Ustawienia → Synchronizuj teraz).',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ).colorScheme.onSurface.withValues(alpha: 0.75),
                 ),
               ),
             ],
-            if (scan.recognitionError != null) ...[
-              const SizedBox(height: 12),
+            if (canAnalyze) ...[
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => context.read<ScanDetailCubit>().runAiAnalysis(
+                        localeLang,
+                      ),
+                icon: const Icon(Icons.auto_awesome_rounded),
+                label: const Text('Analizuj przez AI'),
+              ),
+            ],
+            if (scan.status == VehicleScanStatus.recognized &&
+                scan.vehicleInfo != null) ...[
+              const SizedBox(height: 20),
               Text(
-                'Błąd rozpoznania: ${scan.recognitionError}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                'Rozpoznanie AI',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              _VehicleInfoCard(info: scan.vehicleInfo!),
+            ],
+            if (scan.status == VehicleScanStatus.failed) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Rozpoznanie nie powiodło się.',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(context).colorScheme.error,
                 ),
               ),
+              if (scan.recognitionError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  scan.recognitionError!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+              if (synced) ...[
+                const SizedBox(height: 12),
+                FilledButton.tonal(
+                  onPressed: busy
+                      ? null
+                      : () => context.read<ScanDetailCubit>().runAiAnalysis(
+                          localeLang,
+                        ),
+                  child: const Text('Spróbuj ponownie'),
+                ),
+              ],
             ],
             if (errorMessage != null) ...[
               const SizedBox(height: 12),
@@ -231,6 +305,77 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _VehicleInfoCard extends StatelessWidget {
+  const _VehicleInfoCard({required this.info});
+
+  final VehicleInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _row(context, 'Typ', _vehicleTypeLabelPl(info.vehicleType)),
+            _row(context, 'Marka', info.brand ?? '—'),
+            _row(context, 'Model', info.model ?? '—'),
+            _row(context, 'Generacja', info.generation ?? '—'),
+            _row(context, 'Lata produkcji', info.productionYears ?? '—'),
+            if (info.possibleEngines.isNotEmpty)
+              _row(
+                context,
+                'Silniki (propozycje)',
+                info.possibleEngines.join(', '),
+              ),
+            _row(
+              context,
+              'Pewność',
+              info.confidence != null
+                  ? '${(info.confidence! * 100).toStringAsFixed(0)} %'
+                  : '—',
+            ),
+            if (info.shortDescription != null &&
+                info.shortDescription!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                info.shortDescription!,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, String k, String v) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              k,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(v, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 }

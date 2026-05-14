@@ -42,7 +42,8 @@ class VehicleInfo {
   }
 
   factory VehicleInfo.fromJson(Map<String, dynamic> json) {
-    final typeRaw = json['vehicle_type'] as String?;
+    final typeRaw =
+        json['vehicle_type'] as String? ?? json['vehicleType'] as String?;
     VehicleType? parsedType;
     if (typeRaw != null) {
       try {
@@ -52,23 +53,32 @@ class VehicleInfo {
       }
     }
 
-    final engines =
-        (json['possible_engines'] as List<dynamic>?)
-            ?.map((e) => e as String)
-            .toList() ??
-        const <String>[];
+    final enginesRaw = json['possible_engines'] ?? json['possibleEngines'];
+    var engines = const <String>[];
+    if (enginesRaw is List<dynamic>) {
+      engines = enginesRaw.map((e) => e as String).toList();
+    }
 
     return VehicleInfo(
       vehicleType: parsedType,
       brand: json['brand'] as String?,
       model: json['model'] as String?,
       generation: json['generation'] as String?,
-      productionYears: json['production_years'] as String?,
+      productionYears:
+          json['production_years'] as String? ??
+          json['productionYears'] as String?,
       possibleEngines: engines,
-      shortDescription: json['short_description'] as String?,
+      shortDescription:
+          json['short_description'] as String? ??
+          json['shortDescription'] as String?,
       confidence: (json['confidence'] as num?)?.toDouble(),
-      sourceLanguage: json['source_language'] as String?,
-      wasUserCorrected: json['was_user_corrected'] as bool? ?? false,
+      sourceLanguage:
+          json['source_language'] as String? ??
+          json['sourceLanguage'] as String?,
+      wasUserCorrected:
+          json['was_user_corrected'] as bool? ??
+          json['wasUserCorrected'] as bool? ??
+          false,
     );
   }
 }

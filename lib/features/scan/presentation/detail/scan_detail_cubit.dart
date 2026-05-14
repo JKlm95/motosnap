@@ -1,13 +1,16 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/scan_repository.dart';
+import '../../domain/vehicle_analysis_exception.dart';
+import '../../domain/vehicle_analysis_service.dart';
 import 'scan_detail_state.dart';
 
 class ScanDetailCubit extends Cubit<ScanDetailState> {
-  ScanDetailCubit(this._repository, this.scanId)
+  ScanDetailCubit(this._repository, this._analysis, this.scanId)
     : super(const ScanDetailState());
 
   final ScanRepository _repository;
+  final VehicleAnalysisService _analysis;
   final String scanId;
 
   Future<void> load() async {
@@ -18,6 +21,45 @@ class ScanDetailCubit extends Cubit<ScanDetailState> {
       return;
     }
     emit(ScanDetailState(phase: ScanDetailPhase.ready, scan: scan));
+  }
+
+  Future<void> _emitReadyFromRepo({String? errorMessage}) async {
+    final scan = await _repository.getScan(scanId);
+    if (scan == null) {
+      emit(const ScanDetailState(phase: ScanDetailPhase.notFound));
+      return;
+    }
+    emit(
+      ScanDetailState(
+        phase: ScanDetailPhase.ready,
+        scan: scan,
+        busy: false,
+        errorMessage: errorMessage,
+      ),
+    );
+  }
+
+  Future<void> runAiAnalysis(String languageCode) async {
+    final current = state.scan;
+    if (current == null) {
+      return;
+    }
+    emit(
+      ScanDetailState(
+        phase: ScanDetailPhase.ready,
+        scan: current,
+        busy: true,
+        errorMessage: null,
+      ),
+    );
+    try {
+      await _analysis.analyzeScan(scanId: scanId, languageCode: languageCode);
+      await _emitReadyFromRepo();
+    } on VehicleAnalysisException catch (e) {
+      await _emitReadyFromRepo(errorMessage: e.message);
+    } on Object catch (e) {
+      await _emitReadyFromRepo(errorMessage: e.toString());
+    }
   }
 
   Future<void> togglePublic() async {

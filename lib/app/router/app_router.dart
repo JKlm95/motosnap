@@ -15,6 +15,7 @@ import '../../features/history/presentation/cubit/history_cubit.dart';
 import '../../features/history/presentation/view/history_screen.dart';
 import '../../features/scan/domain/pending_scan_sync.dart';
 import '../../features/scan/domain/scan_repository.dart';
+import '../../features/scan/domain/vehicle_analysis_service.dart';
 import '../../features/scan/presentation/cubit/scan_cubit.dart';
 import '../../features/scan/presentation/detail/scan_detail_cubit.dart';
 import '../../features/scan/presentation/detail/scan_detail_screen.dart';
@@ -74,9 +75,11 @@ abstract final class AppRouter {
           builder: (context, state) {
             final scanId = state.pathParameters['scanId']!;
             return BlocProvider(
-              create: (_) =>
-                  ScanDetailCubit(context.read<ScanRepository>(), scanId)
-                    ..load(),
+              create: (_) => ScanDetailCubit(
+                context.read<ScanRepository>(),
+                context.read<VehicleAnalysisService>(),
+                scanId,
+              )..load(),
               child: ScanDetailScreen(scanId: scanId),
             );
           },

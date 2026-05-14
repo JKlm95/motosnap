@@ -1,5 +1,8 @@
 rules_version = '2';
 
+// TODO(MVP): rozdzielić pola zapisywane tylko przez Cloud Functions (AI) od pól
+// aktualizowanych przez klienta — obecnie klient może nadpisać `vehicle_info` przy ponownym syncu.
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // Profil użytkownika + prywatne skany — tylko właściciel (request.auth.uid).

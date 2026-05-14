@@ -92,6 +92,17 @@ Metody:
 - Po sukcesie: `remoteImageUrl` (download URL), `pendingSync: false`, czyszczenie `sync_last_error`. Przy błędzie: `sync_last_error` + `pendingSync` pozostaje `true`.
 - UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów).
 
+### Cloud Functions — rozpoznanie pojazdu (Gemini)
+
+- **Katalog:** [`functions/`](functions/) — TypeScript, `npm run build` → `lib/`, testy `vitest` w `src/__tests__/`.
+- **Callable:** `analyzeVehicleScan` (Cloud Functions **v2**, region domyślny **`us-central1`** — musi być zgodny z `FirebaseFunctions.instanceFor(region: 'us-central1')` w [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart)).
+- **Sekret:** `GEMINI_API_KEY` przez `defineSecret` (`firebase-functions/params`) — **nigdy** w repozytorium; ustawienie: `firebase functions:secrets:set GEMINI_API_KEY` (interaktywnie wklej klucz z Google AI Studio / Vertex). Po pierwszym deployu z sekretem Firebase podłącza go do runtime funkcji.
+- **Model:** `gemini-2.0-flash`, `responseMimeType: application/json`.
+- **Wejście (data):** `{ "scanId": string, "language": "pl" | "en" }` — wymaga zalogowanego użytkownika (`context.auth`).
+- **Przepływ:** walidacja → odczyt `users/{uid}/scans/{scanId}` → wymóg `remote_image_url` + plik `users/{uid}/scans/{scanId}/original.jpg` w Storage → pobranie JPEG → Gemini → parsowanie JSON (Zod) → zapis w Firestore (`status`, `vehicle_info` w snake_case, `recognition_error`, `recognized_at`, `updated_at`). Sukces: `recognized`; błąd sieciowy AI lub parsowania: `failed` + krótki `recognition_error`.
+- **Prompt (zasady):** identyfikacja pojazdu z obrazu; bez VIN/tablic/osób; `possibleEngines` max 4 krótkie stringi; `shortDescription` max 2 zdania; język treści zgodny z `language`; schemat JSON jak w [`vehicleSchema.ts`](functions/src/vehicleSchema.ts).
+- **Flutter:** [`VehicleAnalysisService`](lib/features/scan/domain/vehicle_analysis_service.dart) + [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart) wywołują callable i **aktualizują lokalny Hive** na podstawie odpowiedzi (bez bezpośredniego Gemini w aplikacji). UI: szczegóły skanu — przycisk „Analizuj przez AI” gdy `waitingForRecognition` i skan zsynchronizowany (`!pendingSync` + `remoteImageUrl`).
+
 ### Reguły bezpieczeństwa (podsumowanie)
 
 - Repozytorium: [`firestore.rules`](firestore.rules), [`storage.rules`](storage.rules), wpis [`firebase.json`](firebase.json) pod deploy CLI.
@@ -112,7 +123,7 @@ Metody:
 - `permission_handler` — jawna prośba o kamerę i lokalizację.
 - `geocoding` — uzupełnienie `city` / `country` / `displayName` (best effort; sieć/zależność od platformy).
 - `hive_flutter`, `image_picker` (tylko kamera), `geolocator`, `go_router`, `flutter_bloc`.
-- `firebase_core`, `firebase_auth`, `cloud_firestore`, `firebase_storage`.
+- `firebase_core`, `firebase_auth`, `cloud_firestore`, `firebase_storage`, `cloud_functions`.
 
 ---
 
@@ -124,7 +135,9 @@ Metody:
 - `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu).
 - `test/login_cubit_test.dart` — walidacja i ścieżka sukcesu logowania (fake `AuthRepository`).
 - `test/firebase_initializer_test.dart` — rozpoznawanie błędu `duplicate-app` jako „już zainicjalizowane”.
+- `test/vehicle_info_from_json_test.dart` — `VehicleInfo.fromJson` (camelCase jak z Cloud Function).
 - `test/widget_test.dart` — lekki smoke MaterialApp.
+- Katalog **`functions/`**: `npm test` — walidacja schematu JSON (Zod) dla odpowiedzi Gemini.
 
 ---
 
@@ -149,6 +162,7 @@ Plik: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 | **`dart format --set-exit-if-changed .`** | Twardy gate stylu — brak „cichego” formatowania w CI; niezgodność kończy job kodem wyjścia ≠ 0. |
 | **`flutter analyze`** | Blokuje merge przy błędach / ostrzeżeniach skonfigurowanych w `analysis_options.yaml`. |
 | **`flutter test`** | Regresje jednostkowe/widgetowe bez uruchamiania emulatora. |
+| **Node 20 + `npm ci` / `npm run build` / `npm test` w `functions/`** | Kompilacja TypeScript Cloud Functions + testy Vitest (schemat JSON). |
 | **`flutter build apk --debug`** | Weryfikacja, że projekt **kompiluje się** w konfiguracji Android (Gradle, manifest, pluginy natywne); debug wystarcza na CI (szybsze, bez keystore). |
 
 ### Zachowanie przy błędach
@@ -175,7 +189,7 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 1. **Freezed / `json_serializable`** — celowo wyłączone do czasu stabilnego `build_runner` w łańcuchu zależności; DTO są ręczne.
 2. **`watchScans`** — implementacja oparta o broadcast i pełne przeładowanie listy; przy dużej liczbie rekordów rozważyć stronicowanie lub incremental sync.
 3. **Usuwanie pliku przy nieudanym zapisie Hive** — obsłużone tylko dla etapu po `persistCameraImage` a przed sukcesem zapisu rekordu; inne ścieżki błędów warto dalej twardo audytować.
-4. **Szczegóły skanu** — brak edycji pól `vehicleInfo` z UI (świadomie do czasu AI).
+4. **Szczegóły skanu** — brak ręcznej edycji `vehicleInfo` z UI (wynik tylko z Cloud Function); brak automatycznego AI po zapisie lokalnym.
 5. **Publiczny feed / mapa / kolekcja „społecznościowa”** — pole `is_public` i `public_location_approximation` są przygotowane pod Firestore, ale brak osobnej kolekcji indeksu publicznego, agregacji ani endpointów — unikamy wycieku dokładnego GPS poza dokument prywatny użytkownika. Rozwój: osobna kolekcja lub Cloud Function filtrująca dane oraz zasady odczytu tylko dla zaufanych ról.
 6. **Synchronizacja w tle** — tylko ręczny przycisk; brak Workmanagera / retry backoff / kolejki offline-dedicated.
 7. **`RouterRefreshBridge`** — strumień sesji trwa cały czas życia aplikacji; przy rozbudowie auth rozważyć jawne zamknięcie subskrypcji poza `dispose` widgetu root (obecnie powiązane z `_RouterLifecycle`).
@@ -186,3 +200,4 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 
 - Reverse geocoding może zawieść (brak sieci, limity API platformy) — UI pokazuje współrzędne jako fallback.
 - `ScanPermissionsService` tworzony inline w `AppRouter` dla zakładki Skan (bez globalnego DI) — akceptowalne na MVP; przy rozroście przenieść do `RepositoryProvider` / injectora.
+- **Firestore + sync klienta:** reguły nadal pozwalają właścicielowi na zapis całego dokumentu skanu; ponowny upload z lokalnego stanu może nadpisać `vehicle_info` ustawione przez Cloud Function — TODO: rozdzielenie pól serwerowych (patrz komentarz w `firestore.rules`).
