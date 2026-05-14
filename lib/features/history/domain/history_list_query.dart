@@ -13,6 +13,7 @@ bool historyScanMatchesFilter(VehicleScan scan, HistoryFilter filter) {
     HistoryFilter.recognized => scan.status == VehicleScanStatus.recognized,
     HistoryFilter.waiting =>
       scan.status == VehicleScanStatus.waitingForRecognition,
+    // „Poprawione” = zapisana korekta użytkownika (kontrakt w TECHNICAL.md).
     HistoryFilter.corrected => scan.userCorrection != null,
     HistoryFilter.public => scan.isPublic,
   };
