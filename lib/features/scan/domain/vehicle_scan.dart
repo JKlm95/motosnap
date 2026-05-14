@@ -18,6 +18,7 @@ class VehicleScan {
     this.isPublic = false,
     this.recognitionError,
     this.pendingSync = true,
+    this.syncLastError,
   });
 
   final String id;
@@ -32,9 +33,12 @@ class VehicleScan {
   final String? recognitionError;
   final bool pendingSync;
 
+  /// Ostatni błąd synchronizacji z chmurą (nie mylić z błędem rozpoznania AI).
+  final String? syncLastError;
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'schema_version': 2,
+      'schema_version': 3,
       'id': id,
       'local_image_path': localImagePath,
       'remote_image_url': remoteImageUrl,
@@ -46,6 +50,7 @@ class VehicleScan {
       'is_public': isPublic,
       'recognition_error': recognitionError,
       'pending_sync': pendingSync,
+      'sync_last_error': syncLastError,
     };
   }
 
@@ -82,6 +87,7 @@ class VehicleScan {
       isPublic: json['is_public'] as bool? ?? false,
       recognitionError: json['recognition_error'] as String?,
       pendingSync: json['pending_sync'] as bool? ?? true,
+      syncLastError: json['sync_last_error'] as String?,
     );
   }
 
@@ -111,6 +117,7 @@ class VehicleScan {
       isPublic: false,
       recognitionError: null,
       pendingSync: true,
+      syncLastError: null,
     );
   }
 
@@ -133,6 +140,8 @@ class VehicleScan {
     bool? isPublic,
     String? recognitionError,
     bool? pendingSync,
+    String? syncLastError,
+    bool updateSyncLastError = false,
   }) {
     return VehicleScan(
       id: id ?? this.id,
@@ -146,6 +155,7 @@ class VehicleScan {
       isPublic: isPublic ?? this.isPublic,
       recognitionError: recognitionError ?? this.recognitionError,
       pendingSync: pendingSync ?? this.pendingSync,
+      syncLastError: updateSyncLastError ? syncLastError : this.syncLastError,
     );
   }
 }

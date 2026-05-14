@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../app/router/app_routes.dart';
+import '../../../../app/router/app_routes.dart';
 import 'cubit/splash_cubit.dart';
 import 'cubit/splash_state.dart';
 
@@ -14,8 +14,14 @@ class SplashScreen extends StatelessWidget {
     return BlocListener<SplashCubit, SplashState>(
       listenWhen: (prev, next) => prev.phase != next.phase,
       listener: (context, state) {
-        if (state.phase == SplashPhase.done) {
-          context.go(AppRoutes.scanRelative);
+        if (state.phase != SplashPhase.done || state.destination == null) {
+          return;
+        }
+        switch (state.destination!) {
+          case SplashDestination.shell:
+            context.go(AppRoutes.scanRelative);
+          case SplashDestination.login:
+            context.go(AppRoutes.login);
         }
       },
       child: Scaffold(

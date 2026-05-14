@@ -1,0 +1,13 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/scans/{scanId}/{fileName} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId
+        && scanId.size() > 0
+        && scanId.size() <= 128
+        && fileName == 'original.jpg';
+    }
+  }
+}

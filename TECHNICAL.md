@@ -8,9 +8,9 @@ Opisuje architekturę, przepływ danych, modele, repozytoria, routing oraz znane
 
 ## Architektura
 
-- **`lib/app/`** — `AppBootstrap` (inicjalizacja Hive, składanie zależności), `MotosnapApp`, `go_router`, motyw.
-- **`lib/core/`** — usługi infrastrukturalne: GPS (`DeviceLocationService` + `CurrentPositionReader`), reverse geocoding (`GeocodingLocationEnricher` / `PassthroughLocationEnricher`), aparat (`CameraCaptureService`, wyłącznie `ImageSource.camera`), zapis plików (`ImageStorageService`), uprawnienia (`ScanPermissionsService` + `permission_handler`), Hive (`ScanLocalDataSource`, `SettingsLocalDataSource`), abstrakcja chmury (`CloudScanSyncService`).
-- **`lib/features/`** — `splash`, `auth` (placeholdery), `scan` (domena, repozytorium, UI skanu + szczegółów), `history` (lista), `settings`.
+- **`lib/app/`** — `AppBootstrap` (Hive, Firebase `try/catch`, wybór repozytoriów auth/sync), `MotosnapApp`, `go_router` z redirectem auth + `RouterRefreshBridge`, motyw.
+- **`lib/core/`** — usługi infrastrukturalne: GPS, geokodowanie, aparat, zapis plików, uprawnienia, Hive, abstrakcja kolejki chmury (`CloudScanSyncService`), wynik ręcznego sync (`SyncSummary`), init Firebase (`FirebaseInitializer`, `CloudSyncAvailability`).
+- **`lib/features/`** — `splash` (hydracja sesji), `auth` (Firebase / offline), `scan` (domena, repozytorium, sync do Firestore+Storage, UI), `history`, `settings`.
 
 Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach core; widgety/Cubit ograniczają się do stanu UI i wywołań repozytorium.
 
@@ -18,11 +18,11 @@ Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach c
 
 ## Model `VehicleScan` (DTO, ręczny JSON)
 
-- **Wersjonowanie:** `toJson()` zapisuje `schema_version: 2`. `fromJson()` rozpoznaje rekordy legacy (pola `image_path`, `captured_at`, `latitude`/`longitude` na root) i mapuje je na nowy kształt ze statusem `waitingForRecognition`.
+- **Wersjonowanie:** `toJson()` zapisuje `schema_version: 3`. `fromJson()` rozpoznaje rekordy legacy (pola `image_path`, `captured_at`, `latitude`/`longitude` na root) i mapuje je na nowy kształt ze statusem `waitingForRecognition`.
 - **Status:** `VehicleScanStatus` — `draft`, `waitingForRecognition`, `recognized`, `failed` (UI nie symuluje rozpoznania — po zapisie lokalnym jest `waitingForRecognition`).
 - **Lokalizacja:** `ScanLocation` — `latitude`, `longitude`, opcjonalnie `city`, `country`, `displayName`, `isApproximatePublicLocation` (domyślnie `true`).
 - **Pojazd:** `VehicleInfo?` — pola pod przyszłe AI; `null` oznacza brak rozpoznania.
-- **Pola dodatkowe:** `remoteImageUrl`, `recognitionError`, `isPublic`, `pendingSync`.
+- **Pola dodatkowe:** `remoteImageUrl`, `recognitionError`, `isPublic`, `pendingSync`, `syncLastError` (ostatni błąd uploadu do chmury).
 
 Enum **`VehicleType`** jest w modelu informacji o pojeździe; dopuszczalne są `unknown` / `other`.
 
@@ -37,7 +37,7 @@ Metody:
 | `watchScans()` | `async*` — pierwsza emisja pełnej listy, potem po każdej zmianie (wewnętrzny broadcast `void`). |
 | `getRecentScans(limit)` | Sort malejąco po `createdAt`, obcięcie do `limit`. |
 | `getScan(id)` | Odczyt z Hive. |
-| `createScan(capturedPhoto:)` | Kopia pliku do katalogu aplikacji → GPS (wymagany) → enrich lokalizacji → zapis `VehicleScan` → no-op sync/AI → emisja zmiany. Przy błędzie po zapisie pliku — usunięcie skopiowego pliku. |
+| `createScan(capturedPhoto:)` | Kopia pliku do katalogu aplikacji → GPS (wymagany) → enrich lokalizacji → zapis `VehicleScan` (`pendingSync: true`) → `CloudScanSyncService.enqueueForUpload` (w MVP **puste** w `FirebaseCloudSyncService` — brak auto-uploadu) → harmonogram analizy (no-op) → emisja zmiany. Przy błędzie po zapisie pliku — usunięcie skopiowego pliku. |
 | `updateScan` | `upsert` z aktualizacją `updatedAt`. |
 | `deleteScan` | Usunięcie pliku lokalnego (best effort) + rekordu w Hive. |
 | `markAsPublic` / `markAsPrivate` | Odczyt, `copyWith(isPublic: ...)`, `updateScan`. |
@@ -53,9 +53,49 @@ Metody:
 
 ## Routing (`go_router`)
 
+- **Redirect auth:** `AuthRouteResolution.redirect` — czysta funkcja (testy w `test/auth_route_resolution_test.dart`). Niezalogowany użytkownik na trasach shell (`/scan`, `/history`, `/settings`) lub `/vehicle-scan/...` jest kierowany na `/auth/login`. Zalogowany na `/auth/*` — na `/scan`. Splash (`/splash`) jest wyłączony z pętli: redirect zwraca `null`, a `SplashCubit` po krótkim opóźnieniu i pierwszym zdarzeniu `watchSession()` wykonuje `context.go` na login lub shell.
+- **Odświeżanie:** `RouterRefreshBridge` nasłuchuje `AuthRepository.watchSession()` i podpięty jest do `GoRouter.refreshListenable` — po loginie/logoucie router przelicza redirect bez ręcznego „haka” w każdym ekranie.
 - Shell: `/scan`, `/history`, `/settings` (`StatefulShellRoute.indexedStack`).
-- Poza shellem: `/vehicle-scan/:scanId` — szczegóły skanu; `BlocProvider` + `ScanDetailCubit` tworzone w builderze trasy.
+- Poza shellem: `/splash`, `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/vehicle-scan/:scanId` — odpowiednie `BlocProvider` w builderach tras.
 - `AppRoutes.vehicleScan(id)` buduje ścieżkę.
+
+---
+
+## Firebase (MVP)
+
+### Inicjalizacja
+
+- `FirebaseInitializer.initialize()` wywoływane tylko przy starcie produkcyjnym (`hivePath == null` w `AppBootstrap`). W testach jednostkowych z podanym `hivePath` Firebase **nie** jest startowane.
+- Konfiguracja przez FlutterFire: `lib/firebase_options.dart` (placeholder + komentarz), natywne `google-services.json` / `GoogleService-Info.plist`. Brak sekretów serwerowych w repo — same identyfikatory klienckie zgodne z konwencją FlutterFire.
+- Przy `initializeApp` z błędem: `FirebaseInitStatus.failed` → `OfflineAuthRepository` + brak `PendingScanSync` (przycisk „Synchronizuj teraz” nieaktywny).
+
+### Auth
+
+- Interfejs: `AuthRepository` (`watchSession`, `readSessionSync`, e-mail/hasło, reset hasła, `signOut`, `currentUserEmail`).
+- Implementacje: `FirebaseAuthRepository` (Firestore: dokument `users/{uid}` przy rejestracji — `email`, `created_at`) oraz `OfflineAuthRepository` (tryb degradacji — operacje auth z komunikatem o konfiguracji).
+- UI: `LoginCubit` / `RegisterCubit` / `ForgotPasswordCubit` + ekrany pod `/auth/*`.
+
+### Firestore (skany)
+
+- Ścieżka: `users/{uid}/scans/{scanId}` (merge `set`).
+- Pola m.in.: `status`, `is_public`, `remote_image_url`, `vehicle_info`, `recognition_error`, `schema_version`, znaczniki czasu.
+- **Prywatność GPS:** `exact_location` — mapa z dokładnymi `latitude` / `longitude` (tylko w dokumencie prywatnym użytkownika). `public_location_approximation` — wyłącznie `city`, `country`, `display_name` (bez dokładnych współrzędnych w tym polu). Flaga `is_public` zapisana w dokumencie; publiczny feed / mapa **nie** są zaimplementowane (TODO poniżej).
+
+### Storage
+
+- Ścieżka obiektu: `users/{uid}/scans/{scanId}/original.jpg` (JPEG z metadanymi `contentType`).
+
+### Sync (ręczny)
+
+- Interfejs domenowy: `PendingScanSync.syncAllPending` — implementacja `FirebaseCloudSyncService` (równolegle `CloudScanSyncService` z pustym `enqueueForUpload`, żeby nie robić automatycznego uploadu po zapisie lokalnym).
+- Po sukcesie: `remoteImageUrl` (download URL), `pendingSync: false`, czyszczenie `sync_last_error`. Przy błędzie: `sync_last_error` + `pendingSync` pozostaje `true`.
+- UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów).
+
+### Reguły bezpieczeństwa (podsumowanie)
+
+- Repozytorium: [`firestore.rules`](firestore.rules), [`storage.rules`](storage.rules), wpis [`firebase.json`](firebase.json) pod deploy CLI.
+- **Firestore:** odczyt/zapis tylko dla `request.auth.uid == userId` w `users/{userId}` oraz `users/{userId}/scans/{scanId}` (długość `scanId` ograniczona).
+- **Storage:** odczyt/zapis tylko własnego prefiksu `users/{uid}/scans/.../original.jpg`.
 
 ---
 
@@ -71,13 +111,17 @@ Metody:
 - `permission_handler` — jawna prośba o kamerę i lokalizację.
 - `geocoding` — uzupełnienie `city` / `country` / `displayName` (best effort; sieć/zależność od platformy).
 - `hive_flutter`, `image_picker` (tylko kamera), `geolocator`, `go_router`, `flutter_bloc`.
+- `firebase_core`, `firebase_auth`, `cloud_firestore`, `firebase_storage`.
 
 ---
 
 ## Testy
 
-- `test/vehicle_scan_test.dart` — roundtrip JSON v2 + migracja legacy.
+- `test/vehicle_scan_test.dart` — roundtrip JSON (schema 3) + migracja legacy.
 - `test/scan_repository_test.dart` — integracja repozytorium z Hive + stub pozycji oraz widget historii (pusty stan).
+- `test/auth_route_resolution_test.dart` — redirecty auth (`go_router`).
+- `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu).
+- `test/login_cubit_test.dart` — walidacja i ścieżka sukcesu logowania (fake `AuthRepository`).
 - `test/widget_test.dart` — lekki smoke MaterialApp.
 
 ---
@@ -130,7 +174,9 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 2. **`watchScans`** — implementacja oparta o broadcast i pełne przeładowanie listy; przy dużej liczbie rekordów rozważyć stronicowanie lub incremental sync.
 3. **Usuwanie pliku przy nieudanym zapisie Hive** — obsłużone tylko dla etapu po `persistCameraImage` a przed sukcesem zapisu rekordu; inne ścieżki błędów warto dalej twardo audytować.
 4. **Szczegóły skanu** — brak edycji pól `vehicleInfo` z UI (świadomie do czasu AI).
-5. **Firebase** — `pendingSync`, `CloudScanSyncService`, `VehicleAnalysisService` pozostają stubami.
+5. **Publiczny feed / mapa / kolekcja „społecznościowa”** — pole `is_public` i `public_location_approximation` są przygotowane pod Firestore, ale brak osobnej kolekcji indeksu publicznego, agregacji ani endpointów — unikamy wycieku dokładnego GPS poza dokument prywatny użytkownika. Rozwój: osobna kolekcja lub Cloud Function filtrująca dane oraz zasady odczytu tylko dla zaufanych ról.
+6. **Synchronizacja w tle** — tylko ręczny przycisk; brak Workmanagera / retry backoff / kolejki offline-dedicated.
+7. **`RouterRefreshBridge`** — strumień sesji trwa cały czas życia aplikacji; przy rozbudowie auth rozważyć jawne zamknięcie subskrypcji poza `dispose` widgetu root (obecnie powiązane z `_RouterLifecycle`).
 
 ---
 

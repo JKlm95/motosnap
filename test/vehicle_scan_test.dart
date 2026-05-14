@@ -32,9 +32,11 @@ void main() {
       isPublic: false,
       recognitionError: null,
       pendingSync: true,
+      syncLastError: null,
     );
 
     final json = original.toJson();
+    expect(json['schema_version'], 3);
     final restored = VehicleScan.fromJson(json);
 
     expect(restored.id, original.id);
