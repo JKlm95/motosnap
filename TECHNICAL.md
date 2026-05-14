@@ -19,8 +19,11 @@ Opisuje architekturę, przepływ danych, modele, repozytoria, routing oraz znane
 - **`lib/core/ui/glass/`** — `GlassSurface` (`BackdropFilter` + półprzezroczyste tło; `blurSigma <= 0` pomija blur), `GlassCard`, `GlassBottomBar` (pill), opcjonalnie `GlassStatusBadge` (domyślnie bez blur), `GlassIconButton`.
 - **`lib/app/shell/`** — `MainShellLayout` / `kShellGlassNavContentPadding` (dolny margines treści pod pływającą nawigacją), `GlassShellBottomNav` (trzy gałęzie shell: skan środek, historia, ustawienia; etykiety z `AppStrings`).
 - **`lib/features/scan/presentation/widgets/scan_status_badge.dart`** — plakietki statusu skanu i „poprawione przez użytkownika” **bez** blur (bezpieczne w przewijanych listach).
+- **Szczegóły skanu (photo-first):** [`ScanImageDisplay`](lib/features/scan/presentation/widgets/scan_image_display.dart) — kolejność **plik lokalny** → **`Image.network(remoteImageUrl)`** (stan ładowania / błąd) → **placeholder**; ten sam **Hero** w historii i nagłówku szczegółów: tag `motosnap-scan-photo-{id}` przez `ScanImageDisplay.heroTagFor(id)`. [`ScanDetailScreen`](lib/features/scan/presentation/detail/scan_detail_screen.dart): nagłówek zdjęcia ~42–48% wysokości ekranu, dolny panel [`DraggableScrollableSheet`](https://api.flutter.dev/flutter/widgets/DraggableScrollableSheet-class.html) z wierzchem w [`GlassSurface`](lib/core/ui/glass/glass_surface.dart) (blur tylko na obrysie panelu, treść w zwykłym `ListView`); uchwyt przeciągania; treść sekcji w [`ScanDetailSheetContent`](lib/features/scan/presentation/detail/scan_detail_sheet_content.dart); siatka pól pojazdu w [`ScanDetailVehicleInfoCard`](lib/features/scan/presentation/detail/scan_detail_vehicle_info_card.dart).
 
 Zasady: blur tylko tam, gdzie ma sens (nawigacja, pojedyncze karty), nie na każdym wierszu listy. Szczegóły haptyki i wydajności `BackdropFilter`: patrz sekcja poniżej (Kompromisy).
+
+**Kompromis MVP (szczegóły):** brak osobnego „silnika” mapy z niezależnym skalowaniem mapy i listy (jak Apple Maps); jest **jeden** nagłówek zdjęcia + **jeden** `DraggableScrollableSheet` z `snap` i kilkoma `snapSizes` — mniej ryzyka regresji layoutu niż w pełni customowy layout sync mapy/listy.
 
 Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach core; widgety/Cubit ograniczają się do stanu UI i wywołań repozytorium.
 
@@ -220,7 +223,7 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 1. **Freezed / `json_serializable`** — celowo wyłączone do czasu stabilnego `build_runner` w łańcuchu zależności; DTO są ręczne.
 2. **`watchScans`** — implementacja oparta o broadcast i pełne przeładowanie listy; przy dużej liczbie rekordów rozważyć stronicowanie lub incremental sync.
 3. **Usuwanie pliku przy nieudanym zapisie Hive** — obsłużone tylko dla etapu po `persistCameraImage` a przed sukcesem zapisu rekordu; inne ścieżki błędów warto dalej twardo audytować.
-4. **Szczegóły skanu** — uproszczony formularz korekty zapisuje `userCorrection`, nie `vehicleInfo`; brak automatycznego AI po zapisie lokalnym.
+4. **Szczegóły skanu** — formularz korekty zapisuje `userCorrection`, nie `vehicleInfo`; brak automatycznego AI po zapisie lokalnym; UI photo-first z Hero i panelem dolnym.
 5. **Publiczny feed / mapa / kolekcja „społecznościowa”** — pole `is_public` i `public_location_approximation` są przygotowane pod Firestore, ale brak osobnej kolekcji indeksu publicznego, agregacji ani endpointów — unikamy wycieku dokładnego GPS poza dokument prywatny użytkownika. Rozwój: osobna kolekcja lub Cloud Function filtrująca dane oraz zasady odczytu tylko dla zaufanych ról.
 6. **Synchronizacja w tle** — tylko ręczny przycisk; brak Workmanagera / retry backoff / kolejki offline-dedicated.
 7. **`RouterRefreshBridge`** — strumień sesji trwa cały czas życia aplikacji; przy rozbudowie auth rozważyć jawne zamknięcie subskrypcji poza `dispose` widgetu root (obecnie powiązane z `_RouterLifecycle`).
@@ -232,5 +235,7 @@ Każdy z kroków z `run:` jest domyślnie **fail-fast** — pierwszy błąd prze
 - Reverse geocoding może zawieść (brak sieci, limity API platformy) — UI pokazuje współrzędne jako fallback.
 - **`BackdropFilter` (glass):** kilka stałych warstw (np. pływająca nawigacja) jest akceptowalne kosztem wydajności; **nie** stosować blur na każdym wierszu przewijanej listy — spadek FPS na starszych Androidach. Przy `blurSigma == 0` `GlassSurface` używa tylko półprzezroczystego tła (tańszy fallback).
 - **Haptyka:** `AppHaptics` opiera się na `HapticFeedback`; na emulatorze lub urządzeniu bez silnika efekt bywa pusty — to normalne, UI nie powinno tego wymagać.
+- **Hero (miniatura → szczegóły):** kształt źródła (kwadrat w historii) i celu (prostokąt w nagłówku) różni się — Flutter morfuje ramkę lotu; ten sam pipeline obrazu (`ScanImageDisplay`) minimalizuje „miganie” placeholder ↔ zdjęcie.
+- **Testy z `ScanStatusBadge` w stanie „oczekuje”:** animacja pulsowania jest nieskończona — `pumpAndSettle()` w testach może wisieć; używać `pump(Duration)`.
 - `ScanPermissionsService` tworzony inline w `AppRouter` dla zakładki Skan (bez globalnego DI) — akceptowalne na MVP; przy rozroście przenieść do `RepositoryProvider` / injectora.
 - **Reguły Firestore vs pełny model:** klient nadal może w teorii wysłać w merge pola spoza listy zabronionych (np. przyszłe pola serwerowe o innych nazwach); trzymać spójność payloadu w [`FirebaseCloudSyncService`](lib/features/scan/data/firebase_cloud_sync_service.dart). Dokument nadrzędny `users/{uid}` ma szerokie `write` — jeśli kiedyś profil będzie edytowany z klienta, rozważyć węższe reguły.

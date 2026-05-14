@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +7,7 @@ import '../../../../app/router/app_routes.dart';
 import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../../scan/domain/vehicle_scan.dart';
+import '../../../scan/presentation/widgets/scan_image_display.dart';
 import '../../../scan/presentation/widgets/scan_status_badge.dart';
 import '../cubit/history_cubit.dart';
 import '../cubit/history_state.dart';
@@ -141,7 +140,6 @@ class _ScanTile extends StatelessWidget {
         scan.location.city ??
         '${scan.location.latitude.toStringAsFixed(3)}, '
             '${scan.location.longitude.toStringAsFixed(3)}';
-    final thumb = File(scan.localImagePath);
     final subtitle = _historyVehicleSubtitle(scan, s);
     final recognition = s.historyVehicleSummary(subtitle);
 
@@ -159,14 +157,12 @@ class _ScanTile extends StatelessWidget {
                 child: SizedBox(
                   width: 72,
                   height: 72,
-                  child: thumb.existsSync()
-                      ? Image.file(thumb, fit: BoxFit.cover)
-                      : ColoredBox(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHigh,
-                          child: const Icon(Icons.image_not_supported_outlined),
-                        ),
+                  child: ScanImageDisplay(
+                    heroTag: ScanImageDisplay.heroTagFor(scan.id),
+                    localImagePath: scan.localImagePath,
+                    remoteImageUrl: scan.remoteImageUrl,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

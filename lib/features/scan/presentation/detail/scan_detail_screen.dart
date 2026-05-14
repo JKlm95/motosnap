@@ -1,17 +1,16 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
+import '../../../../core/ui/glass/glass_surface.dart';
 import '../../domain/user_vehicle_correction.dart';
-import '../../domain/vehicle_info.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
-import '../widgets/scan_status_badge.dart';
+import '../widgets/scan_image_display.dart';
 import 'scan_detail_cubit.dart';
+import 'scan_detail_sheet_content.dart';
 import 'scan_detail_state.dart';
 import 'vehicle_user_correction_sheet.dart';
 
@@ -32,15 +31,20 @@ class ScanDetailScreen extends StatelessWidget {
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(title: Text(s.scanDetailsTitle)),
-          body: switch (state.phase) {
-            ScanDetailPhase.loading => const Center(
-              child: CircularProgressIndicator(),
-            ),
-            ScanDetailPhase.notFound => _NotFound(s: s),
-            ScanDetailPhase.removed => const SizedBox.shrink(),
-            ScanDetailPhase.ready => _ScanDetailHapticListener(
+        return switch (state.phase) {
+          ScanDetailPhase.loading => Scaffold(
+            appBar: AppBar(title: Text(s.scanDetailsTitle)),
+            body: const Center(child: CircularProgressIndicator()),
+          ),
+          ScanDetailPhase.notFound => Scaffold(
+            appBar: AppBar(title: Text(s.scanDetailsTitle)),
+            body: _NotFound(s: s),
+          ),
+          ScanDetailPhase.removed => const Scaffold(body: SizedBox.shrink()),
+          ScanDetailPhase.ready => Scaffold(
+            key: ValueKey(scanId),
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            body: _ScanDetailHapticListener(
               child: _DetailBody(
                 s: s,
                 scan: state.scan!,
@@ -48,8 +52,8 @@ class ScanDetailScreen extends StatelessWidget {
                 errorMessage: state.errorMessage,
               ),
             ),
-          },
-        );
+          ),
+        };
       },
     );
   }
@@ -167,219 +171,160 @@ class _DetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final file = File(scan.localImagePath);
-    final locationLabel =
-        scan.location.displayName ??
-        '${scan.location.latitude.toStringAsFixed(4)}, '
-            '${scan.location.longitude.toStringAsFixed(4)}';
+    final scheme = Theme.of(context).colorScheme;
+    final media = MediaQuery.of(context);
+    final fullH = media.size.height;
+    final headerH = (fullH * 0.42).clamp(220.0, fullH * 0.48);
+    final initialSheet = (1.0 - (headerH / fullH) + 0.06)
+        .clamp(0.54, 0.66)
+        .toDouble();
+    final snapMid = initialSheet <= 0.41
+        ? 0.56
+        : initialSheet.clamp(0.42, 0.68);
 
     final synced = _isSyncedToCloud(scan);
     final canAnalyze =
         scan.status == VehicleScanStatus.waitingForRecognition && synced;
     final localeLang = Localizations.localeOf(context).languageCode;
+    final heroTag = ScanImageDisplay.heroTagFor(scan.id);
 
     return Stack(
+      fit: StackFit.expand,
       children: [
-        ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 200),
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
-                child: file.existsSync()
-                    ? Image.file(file, fit: BoxFit.cover)
-                    : ColoredBox(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHigh,
-                        child: const Center(
-                          child: Icon(Icons.broken_image_outlined),
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                ScanStatusBadge(
-                  status: scan.status,
-                  label: s.scanStatus(scan.status),
-                ),
-                if (scan.userCorrection != null)
-                  UserCorrectedBadge(label: s.correctedByUserLabel),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${s.locationPrefix}: $locationLabel',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            if (synced)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  s.syncedToCloud,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            if (!synced &&
-                scan.status == VehicleScanStatus.waitingForRecognition) ...[
-              const SizedBox(height: 16),
-              Text(
-                s.syncBeforeAiHint,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.75),
-                ),
-              ),
-            ],
-            if (canAnalyze) ...[
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: busy
-                    ? null
-                    : () => context.read<ScanDetailCubit>().runAiAnalysis(
-                        localeLang,
-                      ),
-                icon: const Icon(Icons.auto_awesome_rounded),
-                label: Text(s.analyzeWithAi),
-              ),
-            ],
-            if (scan.status == VehicleScanStatus.recognized ||
-                scan.status == VehicleScanStatus.failed) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: busy
-                    ? null
-                    : () => showVehicleUserCorrectionSheet(
-                        context: context,
-                        scan: scan,
-                        onSave: (UserVehicleCorrection c) => context
-                            .read<ScanDetailCubit>()
-                            .saveUserCorrection(c),
-                      ),
-                icon: const Icon(Icons.edit_outlined),
-                label: Text(s.correctResult),
-              ),
-            ],
-            if ((scan.status == VehicleScanStatus.recognized ||
-                    scan.status == VehicleScanStatus.failed) &&
-                scan.effectiveVehicleInfo != null) ...[
-              const SizedBox(height: 20),
-              Text(
-                s.vehicleInformationSection,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
-              _VehicleInfoCard(s: s, info: scan.effectiveVehicleInfo!),
-              if (scan.userCorrection != null && scan.vehicleInfo != null) ...[
-                const SizedBox(height: 8),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: Text(
-                    s.originalAiResult,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  children: [_VehicleInfoCard(s: s, info: scan.vehicleInfo!)],
-                ),
-              ],
-            ],
-            if (scan.status == VehicleScanStatus.failed) ...[
-              const SizedBox(height: 16),
-              Text(
-                s.recognitionFailedTitle,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                s.recognitionFailedNoDetails,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (synced) ...[
-                const SizedBox(height: 12),
-                FilledButton.tonal(
-                  onPressed: busy
-                      ? null
-                      : () => context.read<ScanDetailCubit>().runAiAnalysis(
-                          localeLang,
-                        ),
-                  child: Text(s.tryAgain),
-                ),
-              ],
-            ],
-            if (errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                errorMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
-              ),
-              TextButton(
-                onPressed: () => context.read<ScanDetailCubit>().clearError(),
-                child: Text(s.closeMessage),
-              ),
-            ],
-          ],
-        ),
+        ColoredBox(color: scheme.surface),
         Positioned(
-          left: 16,
-          right: 16,
-          bottom: 24,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FilledButton.tonal(
-                onPressed: busy
-                    ? null
-                    : () => context.read<ScanDetailCubit>().togglePublic(),
-                child: Text(scan.isPublic ? s.setPrivate : s.setPublic),
+          top: 0,
+          left: 0,
+          right: 0,
+          height: headerH,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(22),
+            ),
+            child: ScanImageDisplay(
+              heroTag: heroTag,
+              localImagePath: scan.localImagePath,
+              remoteImageUrl: scan.remoteImageUrl,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        DraggableScrollableSheet(
+          initialChildSize: initialSheet,
+          minChildSize: 0.38,
+          maxChildSize: 0.94,
+          snap: true,
+          snapSizes: <double>[0.38, snapMid, 0.94],
+          builder: (context, scrollController) {
+            return ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
               ),
-              const SizedBox(height: 10),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Theme.of(context).colorScheme.onError,
+              child: GlassSurface(
+                blurSigma: 14,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
-                onPressed: busy
-                    ? null
-                    : () async {
-                        final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) {
-                            final d = AppStrings.of(ctx);
-                            return AlertDialog(
-                              title: Text(d.deleteScanConfirmTitle),
-                              content: Text(d.deleteScanConfirmBody),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: Text(d.cancel),
-                                ),
-                                FilledButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: Text(d.delete),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                        if (ok == true && context.mounted) {
-                          await context.read<ScanDetailCubit>().delete();
-                        }
-                      },
-                child: Text(s.deleteScan),
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 4),
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: scheme.onSurface.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ScanDetailSheetContent(
+                        scan: scan,
+                        s: s,
+                        busy: busy,
+                        errorMessage: errorMessage,
+                        synced: synced,
+                        canAnalyze: canAnalyze,
+                        scrollController: scrollController,
+                        onAnalyze: () {
+                          AppHaptics.lightImpact();
+                          context.read<ScanDetailCubit>().runAiAnalysis(
+                            localeLang,
+                          );
+                        },
+                        onOpenCorrection: () {
+                          AppHaptics.selection();
+                          showVehicleUserCorrectionSheet(
+                            context: context,
+                            scan: scan,
+                            onSave: (UserVehicleCorrection c) => context
+                                .read<ScanDetailCubit>()
+                                .saveUserCorrection(c),
+                          );
+                        },
+                        onTogglePublic: () {
+                          AppHaptics.lightImpact();
+                          context.read<ScanDetailCubit>().togglePublic();
+                        },
+                        onDeleteTap: () async {
+                          AppHaptics.warning();
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) {
+                              final d = AppStrings.of(ctx);
+                              return AlertDialog(
+                                title: Text(d.deleteScanConfirmTitle),
+                                content: Text(d.deleteScanConfirmBody),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text(d.cancel),
+                                  ),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: Text(d.delete),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                          if (ok == true && context.mounted) {
+                            await context.read<ScanDetailCubit>().delete();
+                          }
+                        },
+                        onClearError: () {
+                          AppHaptics.lightImpact();
+                          context.read<ScanDetailCubit>().clearError();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            );
+          },
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 0, 0),
+              child: Material(
+                color: Colors.black.withValues(alpha: 0.38),
+                shape: const CircleBorder(),
+                child: IconButton(
+                  tooltip: s.back,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  color: Colors.white,
+                  onPressed: () {
+                    AppHaptics.lightImpact();
+                    context.pop();
+                  },
+                ),
+              ),
+            ),
           ),
         ),
         if (busy)
@@ -389,82 +334,6 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _VehicleInfoCard extends StatelessWidget {
-  const _VehicleInfoCard({required this.s, required this.info});
-
-  final AppStrings s;
-  final VehicleInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _row(context, s.fieldType, s.vehicleType(info.vehicleType)),
-            _row(context, s.fieldBrand, info.brand ?? s.emDash),
-            _row(context, s.fieldModel, info.model ?? s.emDash),
-            _row(context, s.fieldGeneration, info.generation ?? s.emDash),
-            _row(
-              context,
-              s.fieldProductionYears,
-              info.productionYears ?? s.emDash,
-            ),
-            if (info.possibleEngines.isNotEmpty)
-              _row(
-                context,
-                s.fieldEnginesHint,
-                info.possibleEngines.join(', '),
-              ),
-            _row(
-              context,
-              s.fieldConfidence,
-              info.confidence != null
-                  ? '${(info.confidence! * 100).toStringAsFixed(0)} %'
-                  : s.emDash,
-            ),
-            if (info.shortDescription != null &&
-                info.shortDescription!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                info.shortDescription!,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _row(BuildContext context, String k, String v) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              k,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(v, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
     );
   }
 }
