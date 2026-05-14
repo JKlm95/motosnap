@@ -122,10 +122,15 @@ Metody:
 ### Sync (ręczny)
 
 - Interfejs domenowy: `PendingScanSync.syncAllPending` — implementacja `FirebaseCloudSyncService` (równolegle `CloudScanSyncService` z pustym `enqueueForUpload`, żeby nie robić automatycznego uploadu po zapisie lokalnym).
+- **Timeouty (polityka):** operacje sieciowe w jednym skanie są ograniczone czasem, żeby ręczny sync nie wisiał w nieskończoność przy „no route to host” / braku sieci: upload Storage (`putFile` + `getDownloadURL`) **30 s**, odczyt dokumentu Firestore (`get`) **15 s**, zapis (`set` merge) **15 s**. Implementacja: [`firebase_sync_timed.dart`](lib/features/scan/data/firebase_sync_timed.dart) + wywołania w [`FirebaseCloudSyncService`](lib/features/scan/data/firebase_cloud_sync_service.dart). Po przekroczeniu czasu rzucany jest `FirebaseSyncTimeoutException` (w `kDebugMode` log `debugPrint` z fazą i stack trace).
+- **Kolejność i spójność:** najpierw upload JPEG do Storage; dopiero po sukcesie i uzyskaniu `downloadUrl` wykonywane są odczyt istniejącego dokumentu, `set(merge)` i ponowny `get` do scalenia. Przy błędzie lub timeoucie **przed** zapisem metadanych do Firestore **nie** tworzy się nowego dokumentu skanu (brak „pustego” rekordu bez obrazu). Jeśli obraz jest w Storage, a zapis/odczyt Firestore się nie powiedzie, skan pozostaje `pendingSync: true` z kodem błędu w `sync_last_error` — użytkownik może ponowić sync (ścieżki Storage/Firestore bez zmian; ponowny upload nadpisuje ten sam obiekt).
+- **Wiele skanów oczekujących:** pętla po `pendingSync` — błąd lub timeout jednego skanu zwiększa licznik `failed` w [`SyncSummary`](lib/core/remote/sync_summary.dart), zapisuje bezpieczny kod błędu lokalnie i **kontynuuje** kolejne skany (żaden pojedynczy upload nie blokuje reszty partii).
+- **`sync_last_error`:** zapisywane są stabilne kody (`SYNC_STORAGE_TIMEOUT`, `SYNC_FIRESTORE_READ_TIMEOUT`, itd. — patrz `FirebaseSyncStoredErrors`), nie surowy tekst wyjątków Firebase; szczegóły techniczne tylko w `debugPrint` przy `kDebugMode`.
+- **UI:** po syncu z `failed > 0` snackbar zawiera przyjazny komunikat (`AppStrings.errorSyncScanConnection`, PL/EN) oraz podsumowanie liczbowe; surowe komunikaty providerów nie trafiają do UI.
 - **Upload klienta (merge):** przy istniejącym dokumencie **nie** wysyła `vehicle_info`, `recognized_at`, `recognition_error` ani `status` — uniknięcie nadpisania wyniku AI i degradacji statusu z `recognized` do `waitingForRecognition`. Przy pierwszym utworzeniu dokumentu wysyłany jest `status: waitingForRecognition`. Zawsze wysyłane są m.in. `remote_image_url`, `is_public`, lokalizacja, `schema_version`, opcjonalnie `user_correction` jeśli istnieje lokalnie.
 - **Scalanie po zapisie:** po `set(merge)` wykonywany jest `get` dokumentu; [`VehicleScanRemoteMerger`](lib/features/scan/data/vehicle_scan_remote_merger.dart) scala odpowiedź z lokalnym `VehicleScan` i zapisuje wynik w Hive (`pendingSync: false`, `remoteImageUrl`, pola AI z Firestore gdy ustawione, ochrona lokalnego stanu „po AI” gdy w chmurze nadal brak `vehicle_info` / status niekońcowy). `user_correction`: wybór nowszego znacznika `corrected_at` (lokal vs zdalny). `localImagePath` i `location` pozostają lokalne.
 - Po sukcesie scalenia: czyszczenie `sync_last_error`. Przy błędzie uploadu: `sync_last_error` + `pendingSync` pozostaje `true`.
-- UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów).
+- UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów); przy `failed > 0` dodatkowo komunikat `errorSyncScanConnection` (bez surowego tekstu Firebase).
 
 ### Cloud Functions — rozpoznanie pojazdu (Gemini)
 
@@ -172,7 +177,8 @@ Metody:
 - `test/history_list_query_test.dart` — filtry/sortowanie historii i `isHistoryScanSyncedToCloud`.
 - `test/confidence_viz_test.dart` — render etykiety poziomu pewności (`ConfidenceViz`).
 - `test/auth_route_resolution_test.dart` — redirecty auth (`go_router`).
-- `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu).
+- `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu; podsumowanie z `failed`).
+- `test/firebase_sync_timed_test.dart` — timeouty syncu i mapowanie kodów `sync_last_error`.
 - `test/login_cubit_test.dart` — walidacja i ścieżka sukcesu logowania (fake `AuthRepository`).
 - `test/firebase_initializer_test.dart` — rozpoznawanie błędu `duplicate-app` jako „już zainicjalizowane”.
 - `test/vehicle_info_from_json_test.dart` — `VehicleInfo.fromJson` (camelCase jak z Cloud Function).

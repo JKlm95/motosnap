@@ -264,6 +264,11 @@ class AppStrings {
   String get errorSyncGeneric => _pl
       ? 'Synchronizacja nie powiodła się. Sprawdź połączenie z siecią i spróbuj ponownie.'
       : 'Sync failed. Check your network connection and try again.';
+
+  /// Po częściowym lub pełnym niepowodzeniu ręcznego syncu skanów (bez surowych błędów Firebase).
+  String get errorSyncScanConnection => _pl
+      ? 'Nie udało się zsynchronizować skanu. Sprawdź połączenie internetowe i spróbuj ponownie.'
+      : 'Could not sync the scan. Check your internet connection and try again.';
   String get errorOperationFailed => _pl
       ? 'Operacja nie powiodła się. Spróbuj ponownie.'
       : 'Something went wrong. Please try again.';

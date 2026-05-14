@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/remote/cloud_scan_sync_service.dart';
 import '../../../core/remote/sync_summary.dart';
@@ -12,6 +13,7 @@ import '../domain/user_correction_remote_sink.dart';
 import '../domain/user_vehicle_correction.dart';
 import '../domain/vehicle_scan.dart';
 import '../domain/vehicle_scan_status.dart';
+import 'firebase_sync_timed.dart';
 import 'vehicle_scan_remote_merger.dart';
 
 /// Konservatywna integracja z Firebase: automatyczny upload po zapisie lokalnym
@@ -52,15 +54,31 @@ final class FirebaseCloudSyncService
       try {
         await _uploadSingleScan(localRepository, uid, scan);
         uploaded++;
-      } on Object catch (e) {
+      } on Object catch (e, st) {
         failed++;
-        await localRepository.updateScan(
-          scan.copyWith(
-            syncLastError: e.toString(),
-            updateSyncLastError: true,
-            updatedAt: DateTime.now().toUtc(),
-          ),
-        );
+        if (kDebugMode) {
+          debugPrint(
+            'FirebaseCloudSyncService.syncAllPending scan=${scan.id} FAILED: $e\n$st',
+          );
+        }
+        final code = firebaseSyncStoredErrorCode(e);
+        try {
+          await localRepository.updateScan(
+            scan.copyWith(
+              syncLastError: code,
+              pendingSync: true,
+              updateSyncLastError: true,
+              updatedAt: DateTime.now().toUtc(),
+            ),
+          );
+        } on Object catch (persistErr, persistSt) {
+          if (kDebugMode) {
+            debugPrint(
+              'FirebaseCloudSyncService: could not persist sync error for '
+              'scan=${scan.id}: $persistErr\n$persistSt',
+            );
+          }
+        }
       }
     }
     return SyncSummary(uploaded: uploaded, failed: failed);
@@ -113,19 +131,29 @@ final class FirebaseCloudSyncService
   ) async {
     final file = File(scan.localImagePath);
     if (!await file.exists()) {
-      throw Exception('Brak pliku lokalnego: ${scan.localImagePath}');
+      throw SyncLocalFileMissing(scan.localImagePath);
     }
 
     final storagePath = 'users/$uid/scans/${scan.id}/original.jpg';
     final ref = _storage.ref().child(storagePath);
-    await ref.putFile(
-      file,
-      SettableMetadata(
-        contentType: 'image/jpeg',
-        customMetadata: <String, String>{'scan_id': scan.id, 'owner_uid': uid},
-      ),
+
+    final downloadUrl = await firebaseSyncTimed(
+      Future(() async {
+        await ref.putFile(
+          file,
+          SettableMetadata(
+            contentType: 'image/jpeg',
+            customMetadata: <String, String>{
+              'scan_id': scan.id,
+              'owner_uid': uid,
+            },
+          ),
+        );
+        return ref.getDownloadURL();
+      }),
+      kFirebaseSyncStorageUploadTimeout,
+      FirebaseSyncPhase.storageUpload,
     );
-    final downloadUrl = await ref.getDownloadURL();
 
     final doc = _firestore
         .collection('users')
@@ -133,7 +161,11 @@ final class FirebaseCloudSyncService
         .collection('scans')
         .doc(scan.id);
 
-    final existing = await doc.get();
+    final existing = await firebaseSyncTimed(
+      doc.get(),
+      kFirebaseSyncFirestoreReadTimeout,
+      FirebaseSyncPhase.firestoreReadExisting,
+    );
     final docExists = existing.exists;
 
     final payload = _clientScanMergePayload(
@@ -142,15 +174,23 @@ final class FirebaseCloudSyncService
       docExists: docExists,
     );
 
-    await doc.set(payload, SetOptions(merge: true));
+    await firebaseSyncTimed(
+      doc.set(payload, SetOptions(merge: true)),
+      kFirebaseSyncFirestoreWriteTimeout,
+      FirebaseSyncPhase.firestoreWrite,
+    );
 
-    final mergedSnap = await doc.get();
+    final mergedSnap = await firebaseSyncTimed(
+      doc.get(),
+      kFirebaseSyncFirestoreReadTimeout,
+      FirebaseSyncPhase.firestoreReadAfterWrite,
+    );
     if (!mergedSnap.exists) {
-      throw StateError('Brak dokumentu skanu po zapisie do Firestore.');
+      throw FirebaseSyncMergeException('missing_doc_after_write');
     }
     final remoteData = mergedSnap.data();
     if (remoteData == null) {
-      throw StateError('Pusty dokument skanu po zapisie do Firestore.');
+      throw FirebaseSyncMergeException('empty_doc_after_write');
     }
 
     final merged = VehicleScanRemoteMerger.mergeAfterFirestoreFetch(

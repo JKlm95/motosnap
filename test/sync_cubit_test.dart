@@ -24,12 +24,30 @@ void main() {
     expect(cubit.state.summary, const SyncSummary(uploaded: 1, failed: 0));
     await cubit.close();
   });
+
+  test(
+    'SyncCubit — częściowa porażka: status done i poprawne failed',
+    () async {
+      final cubit = SyncCubit(_StubPendingSyncWithFailures(), _FakeRepo());
+      await cubit.syncNow();
+      expect(cubit.state.status, ManualSyncStatus.done);
+      expect(cubit.state.summary, const SyncSummary(uploaded: 1, failed: 2));
+      await cubit.close();
+    },
+  );
 }
 
 final class _StubPendingSync implements PendingScanSync {
   @override
   Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
     return const SyncSummary(uploaded: 1, failed: 0);
+  }
+}
+
+final class _StubPendingSyncWithFailures implements PendingScanSync {
+  @override
+  Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
+    return const SyncSummary(uploaded: 1, failed: 2);
   }
 }
 

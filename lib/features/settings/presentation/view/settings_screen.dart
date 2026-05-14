@@ -100,12 +100,12 @@ class SettingsScreen extends StatelessWidget {
                               AppHaptics.success();
                             }
                             messenger.clearSnackBars();
+                            final body = sum.failed > 0
+                                ? '${loc.errorSyncScanConnection}\n\n'
+                                      '${loc.syncDoneSnack(sum.uploaded, sum.failed)}'
+                                : loc.syncDoneSnack(sum.uploaded, sum.failed);
                             messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  loc.syncDoneSnack(sum.uploaded, sum.failed),
-                                ),
-                              ),
+                              SnackBar(content: Text(body)),
                             );
                           } else if (syncState.status ==
                                   ManualSyncStatus.error &&

@@ -22,6 +22,13 @@ void main() {
       expect(s.scanStatus(VehicleScanStatus.recognized), 'Rozpoznano');
       expect(s.scanStatus(VehicleScanStatus.failed), 'Rozpoznanie nieudane');
     });
+
+    test('errorSyncScanConnection', () {
+      expect(
+        s.errorSyncScanConnection,
+        'Nie udało się zsynchronizować skanu. Sprawdź połączenie internetowe i spróbuj ponownie.',
+      );
+    });
   });
 
   group('AppStrings EN', () {
@@ -34,6 +41,13 @@ void main() {
 
     test('scanStatus', () {
       expect(s.scanStatus(VehicleScanStatus.failed), 'Recognition failed');
+    });
+
+    test('errorSyncScanConnection', () {
+      expect(
+        s.errorSyncScanConnection,
+        'Could not sync the scan. Check your internet connection and try again.',
+      );
     });
   });
 }
