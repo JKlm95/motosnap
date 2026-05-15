@@ -23,9 +23,10 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
-# Firebase client files (google-services.json, firebase_options.dart, plist) are
-# intentionally tracked for this repo — do not add them here without a deliberate
-# migration to CI-only secrets. Server secrets (e.g. GEMINI_API_KEY) stay out of git.
+# Firebase client config (google-services.json, firebase_options.dart, plist) may be
+# committed only when it contains placeholders / non-production demo values. Never
+# commit real production API keys or private service accounts. Server secrets (e.g.
+# GEMINI_API_KEY) stay out of git — use Firebase Secrets / CI for those.
 
 # Flutter/Dart/Pub related
 **/doc/api/
