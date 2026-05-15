@@ -54,6 +54,18 @@ describe("vehicleSchema", () => {
     expect(fs.possible_engines).toEqual(["1.4 TSI"]);
   });
 
+  it("parses vehicleType z aliasu PL (motocykl) po normalizacji", () => {
+    const raw = JSON.stringify({
+      vehicleType: "motocykl",
+      brand: "Yamaha",
+      confidence: 0.8,
+      sourceLanguage: "pl",
+    });
+    const v = parseGeminiVehicleJson(raw);
+    expect(v.vehicleType).toBe("motorcycle");
+    expect(v.brand).toBe("Yamaha");
+  });
+
   it("rejects invalid vehicleType", () => {
     const raw = JSON.stringify({
       vehicleType: "spaceship",

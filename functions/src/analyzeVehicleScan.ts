@@ -78,7 +78,11 @@ function buildPrompt(language: "pl" | "en"): string {
   const lang = language === "pl" ? "Polish" : "English";
   return [
     `You are a vehicle identification assistant. Respond in JSON only (no markdown, no code fences).`,
-    `All human-readable string fields (brand, model, generation, productionYears, possibleEngines items, shortDescription) should be written in ${lang} where applicable.`,
+    `CRITICAL — machine-readable structured fields (English only):`,
+    `- JSON property names must be exactly these English keys: vehicleType, brand, model, generation, productionYears, possibleEngines, shortDescription, confidence, sourceLanguage.`,
+    `- vehicleType MUST be exactly one of these English lowercase tokens: car, motorcycle, truck, bus, aircraft, boat, train, agricultural, construction, military, emergency, bicycle, scooter, other, unknown.`,
+    `- Even when sourceLanguage is "${language}", vehicleType stays an English enum token (never localized words like "motocykl" or "samochód").`,
+    `Human-readable content (brand, model, generation, productionYears text, possibleEngines items, shortDescription) should be written in ${lang} where helpful.`,
     `sourceLanguage must be exactly "${language}".`,
     `Identify the main vehicle in the image.`,
     `If unsure, still return your best estimate but lower confidence (0..1).`,
@@ -87,8 +91,6 @@ function buildPrompt(language: "pl" | "en"): string {
     `For productionYears use a plausible model/generation production range text if reasonably known, otherwise null.`,
     `possibleEngines: at most 4 short strings; only if reasonably known; otherwise [].`,
     `shortDescription: at most 2 sentences; null if nothing useful.`,
-    `vehicleType must be one of: car, motorcycle, truck, bus, aircraft, boat, train, agricultural, construction, military, emergency, bicycle, scooter, other, unknown.`,
-    `JSON schema keys exactly: vehicleType, brand, model, generation, productionYears, possibleEngines, shortDescription, confidence, sourceLanguage.`,
   ].join("\n");
 }
 

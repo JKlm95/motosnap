@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { applyGeminiEnumNormalization } from "./geminiEnumNormalize.js";
+
 /** Zgodne z Gemini prompt + modelem `VehicleType` w Flutter (bez `van`). */
 export const vehicleTypeSchema = z.enum([
   "car",
@@ -51,7 +53,27 @@ export function toFirestoreVehicleInfo(v: GeminiVehicleResponse): Record<string,
 
 export function parseGeminiVehicleJson(raw: string): GeminiVehicleResponse {
   const parsed: unknown = JSON.parse(raw);
-  return geminiVehicleResponseSchema.parse(parsed);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Expected JSON object");
+  }
+  const {
+    normalized,
+    vehicleTypeChanged,
+    vehicleTypeFrom,
+    vehicleTypeTo,
+  } = applyGeminiEnumNormalization(parsed as Record<string, unknown>);
+  if (vehicleTypeChanged) {
+    console.info(
+      JSON.stringify({
+        severity: "INFO",
+        fn: "parseGeminiVehicleJson",
+        message: "vehicleType_normalized",
+        from: vehicleTypeFrom ?? null,
+        to: vehicleTypeTo ?? null,
+      }),
+    );
+  }
+  return geminiVehicleResponseSchema.parse(normalized);
 }
 
 export const callableInputSchema = z.object({
