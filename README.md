@@ -17,7 +17,15 @@ Szczegóły modeli, routingu, reguł Firestore i funkcji: [TECHNICAL.md](TECHNIC
 
 ---
 
-## Firebase (skrót)
+## Firebase
+
+### Konfiguracja w repozytorium
+
+- **Android:** w VCS jest wygenerowana konfiguracja pod projekt Firebase **`motosnap-18101`** (`android/app/google-services.json` oraz wpis Android w `lib/firebase_options.dart`). To są identyfikatory klienckie (typowe dla aplikacji mobilnych), nie sekrety serwera jak `GEMINI_API_KEY`.
+- **iOS / web:** wpisy w `lib/firebase_options.dart` (oraz iOS `GoogleService-Info.plist`) mogą nadal być placeholderami do czasu uruchomienia [`flutterfire configure`](https://firebase.flutter.dev/docs/cli/) na maszynie z dostępem do **macOS / Xcode**, gdy będziesz rozwijać build iOS.
+- **Publikacja produkcyjna / publiczne repo z żywym projektem:** warto włączyć **Firebase App Check**, **restrykcje klucza API** w Google Cloud (np. powiązanie z pakietem Android + SHA) oraz rozważyć **osobny projekt demo** na potrzeby portfolio — szczegóły w [TECHNICAL.md](TECHNICAL.md) (Firebase).
+
+### Szybki start (nowe środowisko)
 
 1. [FlutterFire CLI](https://firebase.flutter.dev/docs/cli/) — `flutterfire configure` w katalogu projektu.
 2. W konsoli: Auth (e-mail/hasło), Firestore, Storage; reguły z repo: `firebase deploy --only firestore:rules,storage`.

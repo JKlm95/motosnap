@@ -42,7 +42,9 @@ class SyncCubit extends Cubit<SyncState> {
       }
       emit(SyncState(status: ManualSyncStatus.done, summary: summary));
     } on Object catch (e, st) {
-      debugPrint('SyncCubit.syncNow failed: $e\n$st');
+      if (kDebugMode) {
+        debugPrint('SyncCubit.syncNow failed: $e\n$st');
+      }
       emit(
         const SyncState(
           status: ManualSyncStatus.error,
