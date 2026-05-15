@@ -156,6 +156,24 @@ class AppStrings {
       : 'Take a photo with the camera. GPS location is required — the scan cannot be saved without it.';
   String get scanButton => _pl ? 'Skanuj' : 'Scan';
   String get scanSavedLocally => _pl ? 'Zapisano lokalnie' : 'Saved locally';
+  String get scanFlowSaving => _pl ? 'Zapisywanie skanu…' : 'Saving scan…';
+  String get scanFlowSyncing =>
+      _pl ? 'Wysyłanie do chmury…' : 'Syncing to cloud…';
+  String get scanFlowRecognizing =>
+      _pl ? 'Rozpoznawanie pojazdu…' : 'Recognizing vehicle…';
+  String get scanSavedRecognized =>
+      _pl ? 'Rozpoznano pojazd' : 'Vehicle recognized';
+  String get scanSavedRecognitionFailed =>
+      _pl ? 'Rozpoznanie nie powiodło się' : 'Recognition failed';
+  String get scanSavedAwaitingSyncHint => _pl
+      ? 'Skan jest na urządzeniu — zsynchronizuj w Ustawieniach, aby wysłać go do chmury i uruchomić rozpoznanie AI.'
+      : 'Scan is on this device — go to Settings and sync to upload it and run AI recognition.';
+  String get scanAiPendingCloudHint => _pl
+      ? 'Skan jest w chmurze — rozpoznanie AI uruchomisz w szczegółach skanu.'
+      : 'Scan is in the cloud — run AI recognition from scan details.';
+  String get scanAiRetryFromDetailsHint => _pl
+      ? 'Możesz ponowić rozpoznanie w szczegółach skanu.'
+      : 'You can retry recognition from scan details.';
   String scanSavedStatusLine(String statusLabel) =>
       _pl ? 'Status: $statusLabel' : 'Status: $statusLabel';
   String get scanAiPendingHint => _pl

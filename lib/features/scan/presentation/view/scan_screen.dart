@@ -8,6 +8,7 @@ import '../../../../core/ui/app_motion.dart';
 import '../../../../core/ui/app_shape.dart';
 import '../../../../core/ui/glass/glass_card.dart';
 import '../../domain/vehicle_scan.dart';
+import '../../domain/vehicle_scan_status.dart';
 import '../cubit/scan_cubit.dart';
 import '../cubit/scan_state.dart';
 
@@ -37,12 +38,23 @@ class ScanScreen extends StatelessWidget {
           final busy =
               state.phase == ScanFlowPhase.requestingPermissions ||
               state.phase == ScanFlowPhase.capturing ||
-              state.phase == ScanFlowPhase.saving;
+              state.phase == ScanFlowPhase.saving ||
+              state.phase == ScanFlowPhase.syncingCloud ||
+              state.phase == ScanFlowPhase.recognizingVehicle;
 
           final showRadar =
               state.phase != ScanFlowPhase.success &&
               state.phase != ScanFlowPhase.error &&
               !busy;
+
+          String? flowHint() {
+            return switch (state.phase) {
+              ScanFlowPhase.saving => s.scanFlowSaving,
+              ScanFlowPhase.syncingCloud => s.scanFlowSyncing,
+              ScanFlowPhase.recognizingVehicle => s.scanFlowRecognizing,
+              _ => null,
+            };
+          }
 
           return Scaffold(
             appBar: AppBar(title: Text(s.scanTabTitle)),
@@ -60,6 +72,16 @@ class ScanScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  if (flowHint() != null) ...[
+                    Text(
+                      flowHint()!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   if (state.phase == ScanFlowPhase.success &&
                       state.savedScan != null)
                     _SuccessCard(s: s, scan: state.savedScan!)
@@ -304,28 +326,80 @@ class _SuccessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final recognized =
+        scan.status == VehicleScanStatus.recognized &&
+        scan.effectiveVehicleInfo != null;
+    final failed = scan.status == VehicleScanStatus.failed;
+    final title = recognized
+        ? s.scanSavedRecognized
+        : failed
+        ? s.scanSavedRecognitionFailed
+        : s.scanSavedLocally;
+
+    final String subtitle;
+    if (recognized) {
+      final info = scan.effectiveVehicleInfo!;
+      final parts = <String>[
+        s.vehicleType(info.vehicleType),
+        if ((info.brand ?? '').isNotEmpty) info.brand!,
+        if ((info.model ?? '').isNotEmpty) info.model!,
+      ].where((e) => e.isNotEmpty).toList();
+      subtitle = parts.isEmpty
+          ? s.scanSavedStatusLine(s.scanStatus(scan.status))
+          : parts.join(' · ');
+    } else if (failed) {
+      subtitle =
+          (scan.recognitionError != null && scan.recognitionError!.isNotEmpty)
+          ? scan.recognitionError!
+          : s.scanSavedStatusLine(s.scanStatus(scan.status));
+    } else {
+      subtitle = s.scanSavedStatusLine(s.scanStatus(scan.status));
+    }
+
     return GlassCard(
       blurSigma: 10,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            s.scanSavedLocally,
+            title,
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          Text(s.scanSavedStatusLine(s.scanStatus(scan.status))),
+          Text(subtitle),
           const SizedBox(height: 6),
-          Text(
-            s.scanAiPendingHint,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.65),
+          if (!recognized && !failed && scan.pendingSync)
+            Text(
+              s.scanAiPendingHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.65),
+              ),
+            )
+          else if (!recognized &&
+              !failed &&
+              !scan.pendingSync &&
+              scan.status == VehicleScanStatus.waitingForRecognition)
+            Text(
+              s.scanAiPendingCloudHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.65),
+              ),
+            )
+          else if (failed)
+            Text(
+              s.scanAiRetryFromDetailsHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.65),
+              ),
             ),
-          ),
         ],
       ),
     );

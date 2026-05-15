@@ -130,6 +130,7 @@ Metody:
 - **Upload klienta (merge):** przy istniejącym dokumencie **nie** wysyła `vehicle_info`, `recognized_at`, `recognition_error` ani `status` — uniknięcie nadpisania wyniku AI i degradacji statusu z `recognized` do `waitingForRecognition`. Przy pierwszym utworzeniu dokumentu wysyłany jest `status: waitingForRecognition`. Zawsze wysyłane są m.in. `remote_image_url`, `is_public`, lokalizacja, `schema_version`, opcjonalnie `user_correction` jeśli istnieje lokalnie.
 - **Scalanie po zapisie:** po `set(merge)` wykonywany jest `get` dokumentu; [`VehicleScanRemoteMerger`](lib/features/scan/data/vehicle_scan_remote_merger.dart) scala odpowiedź z lokalnym `VehicleScan` i zapisuje wynik w Hive (`pendingSync: false`, `remoteImageUrl`, pola AI z Firestore gdy ustawione, ochrona lokalnego stanu „po AI” gdy w chmurze nadal brak `vehicle_info` / status niekońcowy). `user_correction`: wybór nowszego znacznika `corrected_at` (lokal vs zdalny). `localImagePath` i `location` pozostają lokalne.
 - Po sukcesie scalenia: czyszczenie `sync_last_error`. Przy błędzie uploadu: `sync_last_error` + `pendingSync` pozostaje `true`.
+- **Automatyczne rozpoznanie AI po syncu:** przy dostępnej chmurze, po zrobieniu zdjęcia [`ScanCubit`](lib/features/scan/presentation/cubit/scan_cubit.dart) wywołuje `syncAllPending`, potem [`PostSyncRecognitionCoordinator`](lib/features/scan/domain/post_sync_recognition.dart) dla `SyncSummary.uploadedScanIds` odpala [`VehicleAnalysisService.analyzeScan`](lib/features/scan/domain/vehicle_analysis_service.dart), o ile [`PostSyncRecognitionPolicy`](lib/features/scan/domain/post_sync_recognition.dart) (`!pendingSync`, `remoteImageUrl`, status `waitingForRecognition`, brak `vehicleInfo`). Identycznie po **Synchronizuj teraz** w [`SyncCubit`](lib/features/settings/presentation/cubit/sync_cubit.dart). AI **nie** startuje przed pomyślnym merge skanu po uploadzie. Duplikaty równoległego `analyzeScan` dla jednego `scanId` są łączone w [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart). Błąd AI: lokalny `failed` + możliwość ręcznego ponowienia w szczegółach.
 - UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów); przy `failed > 0` dodatkowo komunikat `errorSyncScanConnection` (bez surowego tekstu Firebase).
 
 ### Cloud Functions — rozpoznanie pojazdu (Gemini)
@@ -179,7 +180,8 @@ Metody:
 - `test/history_list_query_test.dart` — filtry/sortowanie historii i `isHistoryScanSyncedToCloud`.
 - `test/confidence_viz_test.dart` — render etykiety poziomu pewności (`ConfidenceViz`).
 - `test/auth_route_resolution_test.dart` — redirecty auth (`go_router`).
-- `test/sync_cubit_test.dart` — ręczny sync (stub `PendingScanSync` / brak backendu; podsumowanie z `failed`).
+- `test/post_sync_recognition_test.dart` — reguły i koordynator auto-AI po syncu.
+- `test/sync_cubit_test.dart` — m.in. wywołanie koordynatora po syncu z `uploadedScanIds`.
 - `test/firebase_sync_timed_test.dart` — timeouty syncu i mapowanie kodów `sync_last_error`.
 - `test/login_cubit_test.dart` — walidacja i ścieżka sukcesu logowania (fake `AuthRepository`).
 - `test/firebase_initializer_test.dart` — rozpoznawanie błędu `duplicate-app` jako „już zainicjalizowane”.

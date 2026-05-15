@@ -19,6 +19,7 @@ import '../features/scan/data/firebase_vehicle_analysis_service.dart';
 import '../features/scan/data/noop_vehicle_analysis_service.dart';
 import '../features/scan/data/scan_repository_impl.dart';
 import '../features/scan/domain/pending_scan_sync.dart';
+import '../features/scan/domain/post_sync_recognition.dart';
 import '../features/scan/domain/scan_repository.dart';
 import '../features/scan/domain/user_correction_remote_sink.dart';
 import '../features/scan/domain/vehicle_analysis_service.dart';
@@ -79,6 +80,13 @@ class AppBootstrap {
         ? FirebaseVehicleAnalysisService(scanRepository: scanRepository)
         : NoOpVehicleAnalysisService();
 
+    final PostSyncRecognitionCoordinator? postSyncRecognition = firebaseReady
+        ? PostSyncRecognitionCoordinator(
+            analysis: vehicleAnalysis,
+            repository: scanRepository,
+          )
+        : null;
+
     final settingsRepository = SettingsRepositoryImpl(settingsLocal);
     final cameraCapture = CameraCaptureService();
 
@@ -95,6 +103,9 @@ class AppBootstrap {
         RepositoryProvider<AuthRepository>.value(value: authRepository),
         RepositoryProvider<CameraCaptureService>.value(value: cameraCapture),
         RepositoryProvider<PendingScanSync?>.value(value: firebaseCloudSync),
+        RepositoryProvider<PostSyncRecognitionCoordinator?>.value(
+          value: postSyncRecognition,
+        ),
         RepositoryProvider<CloudSyncAvailability>.value(
           value: CloudSyncAvailability(available: firebaseReady),
         ),

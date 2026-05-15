@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/firebase/cloud_sync_availability.dart';
 import '../../core/media/camera_capture_service.dart';
 import '../../core/ui/app_motion.dart';
 import '../../core/permissions/scan_permissions_service.dart';
@@ -15,6 +16,7 @@ import '../../features/auth/presentation/register/register_screen.dart';
 import '../../features/history/presentation/cubit/history_cubit.dart';
 import '../../features/history/presentation/view/history_screen.dart';
 import '../../features/scan/domain/pending_scan_sync.dart';
+import '../../features/scan/domain/post_sync_recognition.dart';
 import '../../features/scan/domain/scan_repository.dart';
 import '../../features/scan/domain/vehicle_analysis_service.dart';
 import '../../features/scan/presentation/cubit/scan_cubit.dart';
@@ -123,6 +125,10 @@ abstract final class AppRouter {
                       scanRepository: context.read<ScanRepository>(),
                       cameraCapture: context.read<CameraCaptureService>(),
                       permissions: ScanPermissionsService(),
+                      cloudAvailability: context.read<CloudSyncAvailability>(),
+                      pendingSync: context.read<PendingScanSync?>(),
+                      postSyncRecognition: context
+                          .read<PostSyncRecognitionCoordinator?>(),
                     ),
                     child: const ScanScreen(),
                   ),
@@ -154,6 +160,8 @@ abstract final class AppRouter {
                     create: (_) => SyncCubit(
                       context.read<PendingScanSync?>(),
                       context.read<ScanRepository>(),
+                      postSyncRecognition: context
+                          .read<PostSyncRecognitionCoordinator?>(),
                     ),
                     child: const SettingsScreen(),
                   ),

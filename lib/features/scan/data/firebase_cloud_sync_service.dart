@@ -49,11 +49,13 @@ final class FirebaseCloudSyncService
     final pending = all.where((s) => s.pendingSync).toList();
     var uploaded = 0;
     var failed = 0;
+    final uploadedScanIds = <String>[];
 
     for (final scan in pending) {
       try {
         await _uploadSingleScan(localRepository, uid, scan);
         uploaded++;
+        uploadedScanIds.add(scan.id);
       } on Object catch (e, st) {
         failed++;
         if (kDebugMode) {
@@ -81,7 +83,11 @@ final class FirebaseCloudSyncService
         }
       }
     }
-    return SyncSummary(uploaded: uploaded, failed: failed);
+    return SyncSummary(
+      uploaded: uploaded,
+      failed: failed,
+      uploadedScanIds: List<String>.unmodifiable(uploadedScanIds),
+    );
   }
 
   @override

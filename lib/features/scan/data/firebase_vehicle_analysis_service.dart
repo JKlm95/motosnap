@@ -24,11 +24,28 @@ final class FirebaseVehicleAnalysisService implements VehicleAnalysisService {
   final ScanRepository _repository;
   final FirebaseFunctions _functions;
 
+  final Map<String, Future<VehicleInfo>> _inFlight = {};
+
   @override
   Future<void> scheduleAnalysis(String scanId) async {}
 
   @override
   Future<VehicleInfo> analyzeScan({
+    required String scanId,
+    required String languageCode,
+  }) {
+    final existing = _inFlight[scanId];
+    if (existing != null) {
+      return existing;
+    }
+    final future = _analyzeScanOnce(scanId: scanId, languageCode: languageCode);
+    _inFlight[scanId] = future;
+    return future.whenComplete(() {
+      _inFlight.remove(scanId);
+    });
+  }
+
+  Future<VehicleInfo> _analyzeScanOnce({
     required String scanId,
     required String languageCode,
   }) async {

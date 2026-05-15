@@ -7,6 +7,8 @@ enum ScanFlowPhase {
   requestingPermissions,
   capturing,
   saving,
+  syncingCloud,
+  recognizingVehicle,
   success,
   error,
 }

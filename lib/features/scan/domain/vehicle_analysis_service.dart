@@ -2,7 +2,7 @@ import 'vehicle_info.dart';
 
 /// Analiza AI zdjęcia pojazdu — wyłącznie przez Cloud Function (brak klucza Gemini w aplikacji).
 abstract class VehicleAnalysisService {
-  /// No-op w MVP (brak automatycznego uruchamiania AI po zapisie lokalnym).
+  /// Hook po zapisie lokalnym (MVP: no-op). Automatyczne rozpoznanie po udanym syncu jest uruchamiane osobno (warstwa aplikacji, nie ten hook).
   Future<void> scheduleAnalysis(String scanId);
 
   /// Wywołuje callable `analyzeVehicleScan` i aktualizuje lokalny skan w repozytorium.
