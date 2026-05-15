@@ -46,3 +46,25 @@ Firebase CLI powiąże sekret z funkcją używającą `defineSecret("GEMINI_API_
 ## Funkcja `analyzeVehicleScan`
 
 Callable HTTPS (wymaga zalogowanego użytkownika Firebase). Szczegóły przepływu, model (`gemini-2.0-flash`) i schemat JSON: **[../TECHNICAL.md](../TECHNICAL.md)** (sekcja *Cloud Functions — rozpoznanie pojazdu*).
+
+### Payload (callable `request.data`)
+
+| Pole | Typ | Opis |
+|------|-----|------|
+| `scanId` | string | Niepusty, max 128 znaków — ten sam id co w Firestore / Storage. |
+| `language` | `"pl"` \| `"en"` | Język treści odpowiedzi AI. |
+
+Zgodne z Flutter: `FirebaseVehicleAnalysisService` → `httpsCallable('analyzeVehicleScan').call({ scanId, language })`.
+
+### Obraz w Storage
+
+Ścieżka (dokładnie): `users/{uid}/scans/{scanId}/original.jpg` (JPEG) — taka sama jak przy uploadzie z aplikacji.
+
+### Logi (diagnostyka)
+
+Po deployu logi są w **Google Cloud Console → Logging** (lub `firebase functions:log`), filtr np. `resource.type="cloud_run_revision"` + tekst `analyzeVehicleScan`.
+
+- **`console.info`**: JSON z polami `severity`, `fn`, `message`, `uid`, `scanId`, ewent. `stage` / `storagePath` / `outcome` — **bez** promptu, **bez** sekretów, **bez** pełnego `request.data` (tylko lista kluczy).
+- **`console.error`**: JSON z `stage`, `uid`, `scanId`, `errorName`, `errorMessage`, `stack` przy wyjątkach.
+
+Typowe `message` / etapy po kliknięciu „Analizuj przez AI”: `started` → `auth_ok` → `request_data_shape` → `input_parsed` → `firestore_scan_path` → `firestore_scan_present` → `storage_path_resolved` → `image_download_started` / `image_download_finished` → `gemini_request_started` → `gemini_response_received` → walidacja → `firestore_update_recognized_*` lub `function_success` z `outcome`.

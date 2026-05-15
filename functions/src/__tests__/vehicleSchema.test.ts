@@ -1,9 +1,37 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  callableInputSchema,
   parseGeminiVehicleJson,
   toFirestoreVehicleInfo,
 } from "../vehicleSchema";
+
+describe("callableInputSchema", () => {
+  it("parses valid payload", () => {
+    const v = callableInputSchema.parse({
+      scanId: "abc-123",
+      language: "pl",
+    });
+    expect(v.scanId).toBe("abc-123");
+    expect(v.language).toBe("pl");
+  });
+
+  it("rejects empty scanId", () => {
+    expect(() =>
+      callableInputSchema.parse({ scanId: "", language: "en" }),
+    ).toThrow();
+  });
+
+  it("rejects missing scanId", () => {
+    expect(() => callableInputSchema.parse({ language: "en" })).toThrow();
+  });
+
+  it("rejects invalid language", () => {
+    expect(() =>
+      callableInputSchema.parse({ scanId: "x", language: "de" }),
+    ).toThrow();
+  });
+});
 
 describe("vehicleSchema", () => {
   it("parses minimal valid Gemini JSON", () => {

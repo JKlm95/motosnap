@@ -138,7 +138,9 @@ Metody:
 - **Callable:** `analyzeVehicleScan` (Cloud Functions **v2**, region domyślny **`us-central1`** — musi być zgodny z `FirebaseFunctions.instanceFor(region: 'us-central1')` w [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart)).
 - **Sekret:** `GEMINI_API_KEY` przez `defineSecret` (`firebase-functions/params`) — **nigdy** w repozytorium; ustawienie: `firebase functions:secrets:set GEMINI_API_KEY` (interaktywnie wklej klucz z Google AI Studio / Vertex). Po pierwszym deployu z sekretem Firebase podłącza go do runtime funkcji.
 - **Model:** `gemini-2.0-flash`, `responseMimeType: application/json`.
-- **Wejście (data):** `{ "scanId": string, "language": "pl" | "en" }` — wymaga zalogowanego użytkownika (`context.auth`).
+- **Wejście (data):** `{ "scanId": string, "language": "pl" | "en" }` — wymaga zalogowanego użytkownika (`context.auth`). Kontrakt zsynchronizowany z Flutter: [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart) (`httpsCallable('analyzeVehicleScan')`).
+- **HttpsError (krótkie komunikaty dla klienta):** `unauthenticated` (brak auth), `invalid-argument` (Zod wejścia), `not-found` (brak dokumentu skanu lub brak pliku JPEG w Storage), `failed-precondition` (brak `remote_image_url` / brak skonfigurowanego sekretu Gemini po stronie serwera), `internal` (np. błąd odczytu Firestore, downloadu z Storage, zapisu `recognized` po sukcesie modelu). Błędy **Gemini / parsowania JSON / Zod** po zapisie `failed` w Firestore zwracane są jako **HTTP 200** z ciałem `{ status: "failed", recognition_error, ... }`, żeby Flutter mógł zaktualizować Hive (`_applyResponseAndReturn`) — szczegóły techniczne wtedy w `console.error` z polem `stage` (`gemini`, `zod_validate`, …).
+- **Logi (Cloud Logging / `firebase functions:log`):** funkcja emituje `console.info` / `console.error` w formacie JSON (`fn`, `message`, `uid`, `scanId`, opcjonalnie `storagePath`, `outcome`) — bez promptu, bez `GEMINI_API_KEY`, bez pełnego `request.data` (logowana jest tylko lista kluczy). Szczegóły: [`functions/README.md`](functions/README.md) sekcja *Logi*.
 - **Przepływ:** walidacja → odczyt `users/{uid}/scans/{scanId}` → wymóg `remote_image_url` + plik `users/{uid}/scans/{scanId}/original.jpg` w Storage → pobranie JPEG → Gemini → parsowanie JSON (Zod) → zapis w Firestore (`status`, `vehicle_info` w snake_case, `recognition_error`, `recognized_at`, `updated_at`). Sukces: `recognized`; błąd sieciowy AI lub parsowania: `failed` + krótki `recognition_error`.
 - **Prompt (zasady):** identyfikacja pojazdu z obrazu; bez VIN/tablic/osób; `possibleEngines` max 4 krótkie stringi; `shortDescription` max 2 zdania; język treści zgodny z `language`; schemat JSON jak w [`vehicleSchema.ts`](functions/src/vehicleSchema.ts).
 - **Flutter:** [`VehicleAnalysisService`](lib/features/scan/domain/vehicle_analysis_service.dart) + [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart) wywołują callable i **aktualizują lokalny Hive** na podstawie odpowiedzi (bez bezpośredniego Gemini w aplikacji). Odpowiedź zawiera m.in. `recognized_at` (ISO) dla spójnego `recognizedAt` lokalnie; `userCorrection` w skanie **nie** jest kasowany przy aktualizacji AI. UI: szczegóły skanu — przycisk „Analizuj przez AI” gdy `waitingForRecognition` i skan zsynchronizowany (`!pendingSync` + `remoteImageUrl`).
@@ -182,8 +184,9 @@ Metody:
 - `test/login_cubit_test.dart` — walidacja i ścieżka sukcesu logowania (fake `AuthRepository`).
 - `test/firebase_initializer_test.dart` — rozpoznawanie błędu `duplicate-app` jako „już zainicjalizowane”.
 - `test/vehicle_info_from_json_test.dart` — `VehicleInfo.fromJson` (camelCase jak z Cloud Function).
+- `functions/src/__tests__/vehicleSchema.test.ts` (Vitest) — `callableInputSchema` (m.in. brakujący / pusty `scanId`) oraz parsowanie odpowiedzi Gemini (Zod).
 - `test/widget_test.dart` — lekki smoke MaterialApp.
-- Katalog **`functions/`**: `npm test` — walidacja schematu JSON (Zod) dla odpowiedzi Gemini.
+- Katalog **`functions/`**: `npm test` — Vitest w `src/__tests__/` (schemat callable + odpowiedź Gemini).
 
 ---
 

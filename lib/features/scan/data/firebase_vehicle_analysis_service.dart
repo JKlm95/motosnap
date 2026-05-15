@@ -8,6 +8,11 @@ import '../domain/vehicle_scan.dart';
 import '../domain/vehicle_scan_status.dart';
 
 /// Wywołuje `analyzeVehicleScan` (region `us-central1` — zgodnie z deployem Functions).
+///
+/// **Kontrakt callable** (must match `functions/src/analyzeVehicleScan.ts`):
+/// - body: `{ "scanId": string, "language": "pl" | "en" }`
+/// - `scanId` — id dokumentu skanu (`users/{uid}/scans/{scanId}`); ten sam co w Storage
+///   `users/{uid}/scans/{scanId}/original.jpg`.
 final class FirebaseVehicleAnalysisService implements VehicleAnalysisService {
   FirebaseVehicleAnalysisService({
     required ScanRepository scanRepository,
