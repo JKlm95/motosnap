@@ -45,7 +45,7 @@ Firebase CLI powiąże sekret z funkcją używającą `defineSecret("GEMINI_API_
 
 ## Funkcja `analyzeVehicleScan`
 
-Callable HTTPS (wymaga zalogowanego użytkownika Firebase). Szczegóły przepływu, model (`gemini-2.0-flash`) i schemat JSON: **[../TECHNICAL.md](../TECHNICAL.md)** (sekcja *Cloud Functions — rozpoznanie pojazdu*).
+Callable HTTPS (wymaga zalogowanego użytkownika Firebase). Szczegóły przepływu, model (`gemini-2.5-flash`) i schemat JSON: **[../TECHNICAL.md](../TECHNICAL.md)** (sekcja *Cloud Functions — rozpoznanie pojazdu*).
 
 ### Payload (callable `request.data`)
 

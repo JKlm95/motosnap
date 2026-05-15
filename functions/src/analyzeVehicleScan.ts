@@ -224,7 +224,7 @@ export const analyzeVehicleScan = onCall(
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
       },
@@ -239,7 +239,7 @@ export const analyzeVehicleScan = onCall(
 
     let rawJson: string;
     try {
-      logInfo("gemini_request_started", { uid, scanId, model: "gemini-2.0-flash" });
+      logInfo("gemini_request_started", { uid, scanId, model: "gemini-2.5-flash" });
       const result = await model.generateContent([
         { text: buildPrompt(language) },
         imagePart,
