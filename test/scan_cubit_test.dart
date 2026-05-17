@@ -45,20 +45,19 @@ void main() {
       expect(cubit.state.phase, isNot(ScanFlowPhase.recognizingVehicle));
       expect(cubit.state.phase, isNot(ScanFlowPhase.syncingCloud));
 
-    await future;
-    expect(cubit.state.phase, ScanFlowPhase.success);
-    expect(cubit.state.backgroundQueued, isTrue);
-    expect(
-      cubit.state.phase,
-      isNot(anyOf([
-        ScanFlowPhase.syncingCloud,
-        ScanFlowPhase.recognizingVehicle,
-      ])),
-    );
+      await future;
+      expect(cubit.state.phase, ScanFlowPhase.success);
+      expect(cubit.state.backgroundQueued, isTrue);
+      expect(
+        cubit.state.phase,
+        isNot(
+          anyOf([ScanFlowPhase.syncingCloud, ScanFlowPhase.recognizingVehicle]),
+        ),
+      );
 
-    await coordinator.waitUntilIdle();
-    expect(sync.calls, 1);
-    expect(analysis.calls, 1);
+      await coordinator.waitUntilIdle();
+      expect(sync.calls, 1);
+      expect(analysis.calls, 1);
 
       await cubit.close();
     },
@@ -67,12 +66,11 @@ void main() {
 
 final class _ImmediateCamera implements CameraCaptureService {
   @override
-  Future<XFile?> capturePhoto({int imageQuality = 85}) async =>
-      XFile.fromData(
-        Uint8List.fromList(List.filled(8, 0)),
-        name: 'test.jpg',
-        mimeType: 'image/jpeg',
-      );
+  Future<XFile?> capturePhoto({int imageQuality = 85}) async => XFile.fromData(
+    Uint8List.fromList(List.filled(8, 0)),
+    name: 'test.jpg',
+    mimeType: 'image/jpeg',
+  );
 }
 
 final class _AllowAllPermissions implements ScanPermissionsService {

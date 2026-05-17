@@ -181,7 +181,9 @@ class _ConfidenceBadge extends StatelessWidget {
       ),
       child: Text(
         '$value%',
-        style: AppTextStyles.badge(context).copyWith(color: AppColors.primaryRed),
+        style: AppTextStyles.badge(
+          context,
+        ).copyWith(color: AppColors.primaryRed),
       ),
     );
   }
