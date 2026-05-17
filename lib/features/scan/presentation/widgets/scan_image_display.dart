@@ -14,6 +14,8 @@ class ScanImageDisplay extends StatelessWidget {
     this.remoteImageUrl,
     this.heroTag,
     this.fit = BoxFit.cover,
+    this.cacheWidth,
+    this.cacheHeight,
     super.key,
   });
 
@@ -23,6 +25,10 @@ class ScanImageDisplay extends StatelessWidget {
   /// Gdy nie-null, widget owija [Hero] (ten sam tag w liście i na ekranie szczegółów).
   final Object? heroTag;
   final BoxFit fit;
+
+  /// Ogranicza dekodowanie pliku lokalnego (P1 — mniej RAM na listach).
+  final int? cacheWidth;
+  final int? cacheHeight;
 
   /// Stabilny tag Hero dla danego [scanId].
   static String heroTagFor(String scanId) => 'motosnap-scan-photo-$scanId';
@@ -37,6 +43,8 @@ class ScanImageDisplay extends StatelessWidget {
           localImagePath: localImagePath,
           remoteImageUrl: remoteImageUrl,
           fit: fit,
+          cacheWidth: cacheWidth,
+          cacheHeight: cacheHeight,
         ),
       ),
     );
@@ -55,11 +63,15 @@ class _ScanImageCore extends StatelessWidget {
     required this.localImagePath,
     required this.remoteImageUrl,
     required this.fit,
+    this.cacheWidth,
+    this.cacheHeight,
   });
 
   final String localImagePath;
   final String? remoteImageUrl;
   final BoxFit fit;
+  final int? cacheWidth;
+  final int? cacheHeight;
 
   Widget _placeholder(BuildContext context, {bool broken = false}) {
     final scheme = Theme.of(context).colorScheme;
@@ -126,6 +138,8 @@ class _ScanImageCore extends StatelessWidget {
       return Image.file(
         file,
         fit: fit,
+        cacheWidth: cacheWidth,
+        cacheHeight: cacheHeight,
         gaplessPlayback: true,
         filterQuality: FilterQuality.medium,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
@@ -138,6 +152,8 @@ class _ScanImageCore extends StatelessWidget {
       return Image.network(
         url,
         fit: fit,
+        cacheWidth: cacheWidth,
+        cacheHeight: cacheHeight,
         gaplessPlayback: true,
         filterQuality: FilterQuality.medium,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {

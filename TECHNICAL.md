@@ -37,11 +37,27 @@ Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach c
 
 ### Embedded camera (zakładka Skan)
 
-- **Główny flow:** pełnoekranowy podgląd na żywo w [`ScanScreen`](lib/features/scan/presentation/view/scan_screen.dart) przez pakiet [`camera`](https://pub.dev/packages/camera); logika sesji w [`ScanCameraController`](lib/features/scan/presentation/camera/scan_camera_controller.dart) + [`ScanCameraPreview`](lib/features/scan/presentation/camera/scan_camera_preview.dart) (osobny widget, `ListenableBuilder` — bez przebudowy całego `Scaffold` co klatkę).
-- **Capture:** `takePicture()` → [`ScanCubit.saveScanFromPhoto`](lib/features/scan/presentation/cubit/scan_cubit.dart) (tylko GPS + zapis lokalny; bez wychodzenia z aplikacji). Shutter flash + haptics w UI; kolejka sync/AI bez zmian.
-- **Lifecycle:** `WidgetsBindingObserver` (pause/resume aplikacji); `MainShellLayout.isScanTabActive` / `scanTabActiveOf` — pauza podglądu przy przejściu na Historię / Ustawienia (`pausePreview` / `resumePreview`), żeby nie trzymać kamery w tle i uniknąć czarnego ekranu po powrocie.
-- **Fallback:** menu ⋮ — **Galeria** (`CameraCaptureService.pickFromGallery` + `importFromGallery`) oraz **Aparat systemowy** (`captureAndSaveScan` → `image_picker` / natywny aparat). Zachowany dla urządzeń bez podglądu lub odmowy uprawnień.
-- **Uprawnienia:** podgląd prosi o kamerę przy starcie sesji; przy zapisie zdjęcia (embedded lub galeria) — `ensureWhenInUseLocation()`; przy systemowym aparacie — `ensureCameraAndWhenInUseLocation()`.
+- **Główny flow:** pełnoekranowy podgląd przez pakiet [`camera`](https://pub.dev/packages/camera). [`ScanScreen`](lib/features/scan/presentation/view/scan_screen.dart) składa warstwy w `Stack` — **bez** `BlocBuilder` owijającego preview.
+- **Warstwy (Faza A — wydajność):**
+  - [`ScanCameraLayer`](lib/features/scan/presentation/camera/scan_camera_layer.dart) — preview + HUD kamery; **niezależny od `ScanCubit`** (`ListenableBuilder` / `ValueListenable` na kontrolerze kamery).
+  - [`ScanFlowOverlay`](lib/features/scan/presentation/view/scan_flow_overlay.dart) — **jedyny** subtree z `BlocBuilder` reagujący na fazy flow (`saving`, `success`, błędy, przycisk shutter).
+  - `ValueNotifier<bool> hudVisible` w `ScanScreen` (`BlocListener` + `_syncHudVisible`) — gasi HUD/overlay bez rebuildu `ScanCameraPreview`.
+- **Capture:** `ScanCameraController.takePicture()` (guard: `lifecycle == ready`, tab aktywny, nie `isTakingPicture`) → [`ScanCubit.saveScanFromPhoto`](lib/features/scan/presentation/cubit/scan_cubit.dart). Cubit: `if (isClosed) return` po każdym `await` przed `emit`.
+- **Overlay scan line:** statyczna ramka i linia w **osobnych** `RepaintBoundary`; `AnimatedBuilder` tylko na linii ([`ScanCameraOverlay`](lib/features/scan/presentation/widgets/scan_camera_overlay.dart)). Animacja **zatrzymana** gdy tab nieaktywny lub HUD off (`active: false` → `AnimationController.stop()`).
+- **Torch:** `_ensureTorchOff()` przed `pausePreview`, przy `dispose` i zmianie taba (T2).
+- **Miniaturki historii:** [`ScanImageDecodeSize`](lib/core/media/scan_image_decode_size.dart) + `cacheWidth` / `cacheHeight` w [`CinematicThumbnail`](lib/core/ui/cinematic_thumbnail.dart) → [`ScanImageDisplay`](lib/features/scan/presentation/widgets/scan_image_display.dart) (detail bez limitu decode).
+- **Debug:** [`ScanRebuildProbe`](lib/features/scan/presentation/widgets/scan_camera_overlay.dart) — logi `[ScanPerf]` **tylko** w `kDebugMode` (preview / overlay / flow).
+- **Lifecycle:** `WidgetsBindingObserver`; `scanTabActiveOf` → `pausePreview` / `resumePreview`.
+- **Fallback:** menu ⋮ — galeria + aparat systemowy (`image_picker`).
+- **Uprawnienia:** kamera przy starcie sesji; GPS przy zapisie / systemowym aparacie.
+
+#### Checklist QA (Faza A — urządzenie fizyczne)
+
+- [ ] **20 zdjęć pod rząd** — brak freeze, brak narastających lagów.
+- [ ] **Tab switch** (Skan ↔ Historia ↔ Ustawienia) — preview wraca, bez black screen.
+- [ ] **Background / resume** — podgląd żyje, torch wyłączony.
+- [ ] **Torch off** po pauzie taba, wyjściu z app i po powrocie.
+- [ ] **Rebuild:** przy `saving` / `success` log `[ScanPerf] camera_preview` **nie** rośnie (tylko `scan_flow_overlay`).
 
 ### Kolejka sync + AI w aplikacji (in-app background)
 

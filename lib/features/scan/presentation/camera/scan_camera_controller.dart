@@ -18,6 +18,7 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
   bool _tabActive = true;
   bool _disposed = false;
   int _initGeneration = 0;
+  Timer? _focusClearTimer;
 
   void attach() {
     if (_attached) {
@@ -172,7 +173,26 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _ensureTorchOff() async {
+    final c = _state.controller;
+    if (c == null ||
+        !c.value.isInitialized ||
+        !_state.supportsFlash ||
+        _state.flashMode == FlashMode.off) {
+      return;
+    }
+    try {
+      await c.setFlashMode(FlashMode.off);
+      if (!_disposed) {
+        _setState(_state.copyWith(flashMode: FlashMode.off));
+      }
+    } on Object {
+      // ignore
+    }
+  }
+
   Future<void> _pausePreview() async {
+    await _ensureTorchOff();
     final c = _state.controller;
     if (c == null || !c.value.isInitialized) {
       return;
@@ -217,7 +237,8 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
       await c.setFocusPoint(normalized);
       await c.setExposurePoint(normalized);
       _setState(_state.copyWith(focusPoint: normalized));
-      Future<void>.delayed(const Duration(milliseconds: 900), () {
+      _focusClearTimer?.cancel();
+      _focusClearTimer = Timer(const Duration(milliseconds: 900), () {
         if (!_disposed) {
           _setState(_state.copyWith(clearFocusPoint: true));
         }
@@ -244,8 +265,14 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<XFile?> takePicture() async {
+    if (_disposed || !_tabActive) {
+      return null;
+    }
     final c = _state.controller;
-    if (c == null || !c.value.isInitialized || c.value.isTakingPicture) {
+    if (_state.lifecycle != ScanCameraLifecycle.ready ||
+        c == null ||
+        !c.value.isInitialized ||
+        c.value.isTakingPicture) {
       return null;
     }
     _setState(_state.copyWith(showShutterFlash: true));
@@ -270,7 +297,9 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
   void dispose() {
     _disposed = true;
     _initGeneration++;
+    _focusClearTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(_ensureTorchOff());
     _state.controller?.dispose();
     super.dispose();
   }

@@ -35,11 +35,17 @@ class ScanCubit extends Cubit<ScanState> {
     try {
       await _permissions.ensureWhenInUseLocation();
     } on ScanPermissionException catch (e) {
+      if (isClosed) {
+        return;
+      }
       final msg = switch (e.denied) {
         ScanPermissionDeniedKind.locationWhenInUse => s.errorLocationPermission,
         ScanPermissionDeniedKind.camera => s.errorCameraPermission,
       };
       emit(ScanState(phase: ScanFlowPhase.error, errorMessage: msg));
+      return;
+    }
+    if (isClosed) {
       return;
     }
 
@@ -53,6 +59,9 @@ class ScanCubit extends Cubit<ScanState> {
     try {
       await _permissions.ensureCameraAndWhenInUseLocation();
     } on ScanPermissionException catch (e) {
+      if (isClosed) {
+        return;
+      }
       final msg = switch (e.denied) {
         ScanPermissionDeniedKind.locationWhenInUse => s.errorLocationPermission,
         ScanPermissionDeniedKind.camera => s.errorCameraPermission,
@@ -60,9 +69,15 @@ class ScanCubit extends Cubit<ScanState> {
       emit(ScanState(phase: ScanFlowPhase.error, errorMessage: msg));
       return;
     }
+    if (isClosed) {
+      return;
+    }
 
     emit(const ScanState(phase: ScanFlowPhase.capturing));
     final file = await _camera.capturePhoto();
+    if (isClosed) {
+      return;
+    }
     if (file == null) {
       emit(
         ScanState(phase: ScanFlowPhase.idle, errorMessage: s.photoCancelled),
@@ -75,7 +90,7 @@ class ScanCubit extends Cubit<ScanState> {
 
   Future<void> importFromGallery(String uiLanguageCode) async {
     final file = await _camera.pickFromGallery();
-    if (file == null) {
+    if (isClosed || file == null) {
       return;
     }
     await saveScanFromPhoto(file, uiLanguageCode);
@@ -89,6 +104,9 @@ class ScanCubit extends Cubit<ScanState> {
     emit(const ScanState(phase: ScanFlowPhase.saving));
     try {
       final scan = await _repository.createScan(capturedPhoto: capturedPhoto);
+      if (isClosed) {
+        return;
+      }
       _processing?.enqueue(scan.id, uiLanguageCode);
       emit(
         ScanState(
@@ -98,6 +116,9 @@ class ScanCubit extends Cubit<ScanState> {
         ),
       );
     } on Object catch (e) {
+      if (isClosed) {
+        return;
+      }
       emit(
         ScanState(phase: ScanFlowPhase.error, errorMessage: _mapError(s, e)),
       );
@@ -105,6 +126,9 @@ class ScanCubit extends Cubit<ScanState> {
   }
 
   void clearTransient() {
+    if (isClosed) {
+      return;
+    }
     emit(const ScanState());
   }
 

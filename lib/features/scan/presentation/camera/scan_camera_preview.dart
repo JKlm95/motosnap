@@ -7,7 +7,7 @@ import '../../../../core/ui/shimmer/moto_shimmer.dart';
 import 'scan_camera_controller.dart';
 import 'scan_camera_state.dart';
 
-/// Fullscreen camera preview — osobny widget, minimalne rebuildy (ListenableBuilder).
+/// Fullscreen camera preview — [ListenableBuilder] tylko na tym subtree.
 class ScanCameraPreview extends StatelessWidget {
   const ScanCameraPreview({
     required this.controller,
@@ -27,10 +27,13 @@ class ScanCameraPreview extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            _PreviewBody(state: state, onTapFocus: onTapFocus),
-            if (state.showShutterFlash) const ColoredBox(color: Colors.white54),
+            RepaintBoundary(
+              child: _PreviewBody(state: state, onTapFocus: onTapFocus),
+            ),
+            if (state.showShutterFlash)
+              const RepaintBoundary(child: ColoredBox(color: Colors.white54)),
             if (state.focusPoint != null)
-              _FocusReticle(point: state.focusPoint!),
+              RepaintBoundary(child: _FocusReticle(point: state.focusPoint!)),
           ],
         );
       },
@@ -107,7 +110,9 @@ class _LivePreview extends StatelessWidget {
         curve: AppDurations.standard,
         builder: (context, opacity, child) =>
             Opacity(opacity: opacity, child: child),
-        child: _CoverCameraPreview(controller: controller!),
+        child: RepaintBoundary(
+          child: _CoverCameraPreview(controller: controller!),
+        ),
       ),
     );
   }

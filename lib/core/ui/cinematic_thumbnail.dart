@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../media/scan_image_decode_size.dart';
 import '../../features/scan/presentation/widgets/scan_image_display.dart';
 
 /// Spójny kadr 4:5 (cinematic portrait) dla miniaturek w historii i listach.
@@ -22,6 +23,8 @@ abstract final class CinematicThumbnail {
     List<Widget> overlays = const [],
   }) {
     final w = width ?? widthForList(context);
+    final decodeW = ScanImageDecodeSize.decodeWidth(context, w);
+    final decodeH = ScanImageDecodeSize.decodeHeight(decodeW);
     return SizedBox(
       width: w,
       child: AspectRatio(
@@ -36,6 +39,8 @@ abstract final class CinematicThumbnail {
                 localImagePath: localImagePath,
                 remoteImageUrl: remoteImageUrl,
                 fit: BoxFit.cover,
+                cacheWidth: decodeW,
+                cacheHeight: decodeH,
               ),
               ...overlays,
             ],
