@@ -95,6 +95,7 @@ class AppStrings {
   String get aiAnalysisSection => _pl ? 'Analiza AI' : 'AI Analysis';
   String get recognitionInfoSection => _pl ? 'Rozpoznanie' : 'Recognition info';
   String get historyAiVerifiedBadge => _pl ? 'AI ZWERYFIKOWANE' : 'AI VERIFIED';
+  String get historyAiVerifiedShort => _pl ? 'AI ✓' : 'AI ✓';
 
   /// Rotujące komunikaty podczas analizy AI (premium, bez „gamingu”).
   List<String> get aiAnalysisStatusLines => _pl
@@ -174,6 +175,14 @@ class AppStrings {
       ? 'Zrób zdjęcie z aparatu. Lokalizacja GPS jest wymagana — bez niej skan nie zostanie zapisany.'
       : 'Take a photo with the camera. GPS location is required — the scan cannot be saved without it.';
   String get scanButton => _pl ? 'Skanuj' : 'Scan';
+  String get scanLivePreview => _pl ? 'NA ŻYWO' : 'LIVE';
+  String get scanOpenGallery => _pl ? 'Galeria' : 'Gallery';
+  String get scanSystemCamera => _pl ? 'Aparat systemowy' : 'System camera';
+  String get scanCameraPermissionHint => _pl
+      ? 'Włącz dostęp do aparatu w ustawieniach, aby użyć podglądu na żywo.'
+      : 'Enable camera access in settings to use live preview.';
+  String get scanFlashOn => _pl ? 'Lampa' : 'Flash';
+  String get scanFlashOff => _pl ? 'Lampa wył.' : 'Flash off';
   String get scanSavedLocally => _pl ? 'Zapisano lokalnie' : 'Saved locally';
   String get scanSavedBackgroundRecognition => _pl
       ? 'Skan zapisany. Rozpoznawanie uruchomiono w tle.'

@@ -75,7 +75,12 @@ class ScanDetailSheetContent extends StatelessWidget {
       ),
       children: [
         if (title != null) ...[
-          Text(title, style: theme.headlineSmall),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.headlineSmall,
+          ),
           const SizedBox(height: 6),
         ],
         Wrap(

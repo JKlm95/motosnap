@@ -133,11 +133,15 @@ class HistoryFiltersBar extends StatelessWidget {
                   children: [
                     Icon(Icons.sort_rounded, size: 20, color: scheme.primary),
                     const SizedBox(width: 4),
-                    Text(
-                      _sortLabel(sort),
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: scheme.primary,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        _sortLabel(sort),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     Icon(Icons.arrow_drop_down_rounded, color: scheme.primary),

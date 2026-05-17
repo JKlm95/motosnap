@@ -229,6 +229,8 @@ class _CenterScanFab extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: selected

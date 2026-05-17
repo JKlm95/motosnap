@@ -5,10 +5,16 @@ import '../../domain/vehicle_scan_status.dart';
 
 /// Status skanu z lekką animacją (bez blur — bezpieczne w listach).
 class ScanStatusBadge extends StatelessWidget {
-  const ScanStatusBadge({required this.status, required this.label, super.key});
+  const ScanStatusBadge({
+    required this.status,
+    required this.label,
+    this.dense = false,
+    super.key,
+  });
 
   final VehicleScanStatus status;
   final String label;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +33,10 @@ class ScanStatusBadge extends StatelessWidget {
     return Semantics(
       label: label,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: dense ? 8 : 10,
+          vertical: dense ? 4 : 6,
+        ),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(999),
