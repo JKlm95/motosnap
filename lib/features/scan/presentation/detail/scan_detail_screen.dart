@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
+import '../../../../core/theme/app_gradients.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/ui/app_shape.dart';
 import '../../../../core/ui/glass/glass_surface.dart';
 import '../../../../core/ui/shimmer/moto_shimmer.dart';
@@ -254,14 +256,24 @@ class _DetailBody extends StatelessWidget {
           right: 0,
           height: headerH,
           child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(AppShape.headerImage),
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(AppRadius.header),
             ),
-            child: ScanImageDisplay(
-              heroTag: heroTag,
-              localImagePath: scan.localImagePath,
-              remoteImageUrl: scan.remoteImageUrl,
-              fit: BoxFit.cover,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ScanImageDisplay(
+                  heroTag: heroTag,
+                  localImagePath: scan.localImagePath,
+                  remoteImageUrl: scan.remoteImageUrl,
+                  fit: BoxFit.cover,
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: AppGradients.detailHeader,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

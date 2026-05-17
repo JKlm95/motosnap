@@ -19,7 +19,7 @@ class SettingsLocalDataSource {
     return switch (raw) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
-      _ => ThemeMode.system,
+      _ => ThemeMode.dark,
     };
   }
 

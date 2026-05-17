@@ -91,6 +91,25 @@ class AppStrings {
   String get scanDetailsTitle => _pl ? 'Szczegóły skanu' : 'Scan details';
   String get vehicleInformationSection =>
       _pl ? 'Informacje o pojeździe' : 'Vehicle information';
+  String get vehicleDnaSection => _pl ? 'DNA pojazdu' : 'Vehicle DNA';
+  String get aiAnalysisSection => _pl ? 'Analiza AI' : 'AI Analysis';
+  String get recognitionInfoSection => _pl ? 'Rozpoznanie' : 'Recognition info';
+  String get historyAiVerifiedBadge => _pl ? 'AI ZWERYFIKOWANE' : 'AI VERIFIED';
+
+  /// Rotujące komunikaty podczas analizy AI (premium, bez „gamingu”).
+  List<String> get aiAnalysisStatusLines => _pl
+      ? [
+          'Analiza geometrii pojazdu…',
+          'Wykrywanie sygnatur producenta…',
+          'Identyfikacja generacji modelu…',
+          'Porównywanie profili nadwozia…',
+        ]
+      : [
+          'Analyzing vehicle geometry…',
+          'Detecting manufacturer signatures…',
+          'Identifying model generation…',
+          'Matching body profile signatures…',
+        ];
   String get correctedByUserLabel =>
       _pl ? 'Poprawione przez użytkownika' : 'Corrected by user';
   String get originalAiResult =>
@@ -169,7 +188,7 @@ class AppStrings {
   String get scanFlowSyncing =>
       _pl ? 'Wysyłanie do chmury…' : 'Syncing to cloud…';
   String get scanFlowRecognizing =>
-      _pl ? 'Rozpoznawanie pojazdu…' : 'Recognizing vehicle…';
+      _pl ? 'Analiza geometrii pojazdu…' : 'Analyzing vehicle geometry…';
   String get scanSavedRecognized =>
       _pl ? 'Rozpoznano pojazd' : 'Vehicle recognized';
   String get scanSavedRecognitionFailed =>

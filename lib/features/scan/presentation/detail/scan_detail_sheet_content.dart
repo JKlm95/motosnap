@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/locale/app_strings.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
 import '../widgets/scan_status_badge.dart';
@@ -46,6 +48,7 @@ class ScanDetailSheetContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context).textTheme;
     final locationLabel =
         scan.location.displayName ??
         '${scan.location.latitude.toStringAsFixed(4)}, '
@@ -59,23 +62,22 @@ class ScanDetailSheetContent extends StatelessWidget {
     final useReveal =
         vehicleRevealToken > 0 && showVehicleData && !showAiSkeleton;
 
+    final title = _vehicleProfileTitle(scan, s);
+
     return ListView(
       controller: scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
-        20,
+        AppSpacing.screenH,
         4,
-        20,
+        AppSpacing.screenH,
         28 + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
-        Text(
-          s.scanDetailsTitle,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 14),
+        if (title != null) ...[
+          Text(title, style: theme.headlineSmall),
+          const SizedBox(height: 6),
+        ],
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -90,30 +92,22 @@ class ScanDetailSheetContent extends StatelessWidget {
           ],
         ),
         if (errorMessage != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.md),
           Text(
             errorMessage!,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.error),
+            style: theme.bodySmall?.copyWith(color: scheme.error),
           ),
           TextButton(onPressed: onClearError, child: Text(s.closeMessage)),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: AppSpacing.lg),
         if (showAiSkeleton) ...[
-          Text(
-            s.vehicleInformationSection,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
+          _SectionHeader(title: s.aiAnalysisSection),
+          const SizedBox(height: AppSpacing.xs),
           const ScanDetailAiResultSkeleton(),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.sectionGap),
         ] else if (showVehicleData) ...[
-          Text(
-            s.vehicleInformationSection,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 8),
+          _SectionHeader(title: s.vehicleDnaSection),
+          const SizedBox(height: AppSpacing.xs),
           if (useReveal)
             ScanDetailVehicleRevealCard(
               s: s,
@@ -123,47 +117,39 @@ class ScanDetailSheetContent extends StatelessWidget {
           else
             ScanDetailVehicleInfoCard(s: s, info: scan.effectiveVehicleInfo!),
           if (scan.userCorrection != null && scan.vehicleInfo != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: Text(
-                s.originalAiResult,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              title: Text(s.originalAiResult, style: theme.titleSmall),
               children: [
                 ScanDetailVehicleInfoCard(s: s, info: scan.vehicleInfo!),
               ],
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.sectionGap),
         ],
-        Text(s.locationPrefix, style: Theme.of(context).textTheme.titleSmall),
+        _SectionHeader(title: s.recognitionInfoSection),
+        const SizedBox(height: AppSpacing.xs),
+        Text(s.locationPrefix, style: theme.labelLarge),
         const SizedBox(height: 6),
-        Text(locationLabel, style: Theme.of(context).textTheme.bodyMedium),
+        Text(locationLabel, style: theme.bodyMedium),
         if (synced)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
             child: Text(
               s.syncedToCloud,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.primary),
+              style: theme.bodySmall?.copyWith(color: AppColors.primaryRed),
             ),
           ),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppSpacing.sectionGap),
         if (!synced && scan.status == VehicleScanStatus.waitingForRecognition)
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              s.syncBeforeAiHint,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.75),
-              ),
-            ),
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Text(s.syncBeforeAiHint, style: theme.bodyMedium),
           ),
         if (canAnalyze && !showAiSkeleton) ...[
-          Text(s.analyzeWithAi, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
+          _SectionHeader(title: s.aiAnalysisSection),
+          const SizedBox(height: AppSpacing.xs),
           FilledButton.icon(
             onPressed: busy ? null : onAnalyze,
             icon: const Icon(Icons.auto_awesome_rounded),
@@ -171,50 +157,78 @@ class ScanDetailSheetContent extends StatelessWidget {
           ),
         ],
         if (scan.status == VehicleScanStatus.failed) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.md),
           Text(
             s.recognitionFailedTitle,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(color: scheme.error),
+            style: theme.titleSmall?.copyWith(color: scheme.error),
           ),
           const SizedBox(height: 6),
-          Text(
-            s.recognitionFailedNoDetails,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(s.recognitionFailedNoDetails, style: theme.bodySmall),
           if (synced && !showAiSkeleton) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             FilledButton.tonal(
               onPressed: busy ? null : onAnalyze,
               child: Text(s.tryAgain),
             ),
           ],
         ],
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpacing.xl),
         FilledButton.tonal(
           onPressed: busy ? null : onTogglePublic,
           child: Text(scan.isPublic ? s.setPrivate : s.setPublic),
         ),
         if (scan.status == VehicleScanStatus.recognized ||
             scan.status == VehicleScanStatus.failed) ...[
-          const SizedBox(height: 20),
-          OutlinedButton.icon(
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton(
             onPressed: busy ? null : onOpenCorrection,
-            icon: const Icon(Icons.edit_outlined),
-            label: Text(s.correctResult),
+            child: Text(s.correctResult),
           ),
         ],
-        const SizedBox(height: 28),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: scheme.error,
-            foregroundColor: scheme.onError,
-          ),
+        const SizedBox(height: AppSpacing.md),
+        TextButton(
           onPressed: busy ? null : onDeleteTap,
+          style: TextButton.styleFrom(foregroundColor: scheme.error),
           child: Text(s.deleteScan),
         ),
       ],
+    );
+  }
+
+  String? _vehicleProfileTitle(VehicleScan scan, AppStrings s) {
+    final info = scan.effectiveVehicleInfo;
+    if (info == null) {
+      return null;
+    }
+    final brand = info.brand?.trim() ?? '';
+    final model = info.model?.trim() ?? '';
+    if (brand.isNotEmpty && model.isNotEmpty) {
+      return '$brand $model';
+    }
+    if (brand.isNotEmpty) {
+      return brand;
+    }
+    if (model.isNotEmpty) {
+      return model;
+    }
+    return s.vehicleType(info.vehicleType);
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title.toUpperCase(),
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+        color: AppColors.textMuted,
+        letterSpacing: 1.2,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 }

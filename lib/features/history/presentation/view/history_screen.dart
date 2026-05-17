@@ -1,43 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
-
 import '../../../../app/router/app_routes.dart';
 import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/firebase/cloud_sync_availability.dart';
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
-import '../../../../core/ui/app_shape.dart';
-import '../../../scan/domain/vehicle_scan.dart';
-import '../../../scan/presentation/widgets/scan_image_display.dart';
-import '../../../scan/presentation/widgets/scan_status_badge.dart';
 import '../cubit/history_cubit.dart';
 import '../cubit/history_state.dart';
 import '../widgets/history_filters_bar.dart';
 import '../widgets/history_list_skeleton.dart';
 import '../widgets/history_slidable_scan_tile.dart';
-
-String? _historyVehicleSubtitle(VehicleScan scan, AppStrings s) {
-  final e = scan.effectiveVehicleInfo;
-  if (e == null) {
-    return null;
-  }
-  final parts = <String>[];
-  if (e.brand != null && e.brand!.trim().isNotEmpty) {
-    parts.add(e.brand!.trim());
-  }
-  if (e.model != null && e.model!.trim().isNotEmpty) {
-    parts.add(e.model!.trim());
-  }
-  if (parts.isNotEmpty) {
-    return parts.join(' ');
-  }
-  if (e.vehicleType != null) {
-    return s.vehicleType(e.vehicleType);
-  }
-  return null;
-}
+import '../widgets/premium_history_scan_card.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -178,7 +152,7 @@ class HistoryScreen extends StatelessWidget {
                                             state.listAnimationEpoch,
                                         child: Stack(
                                           children: [
-                                            _HistoryScanTileCard(
+                                            PremiumHistoryScanCard(
                                               s: s,
                                               scan: scan,
                                             ),
@@ -354,102 +328,6 @@ class _HistoryError extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryScanTileCard extends StatelessWidget {
-  const _HistoryScanTileCard({required this.s, required this.scan});
-
-  final AppStrings s;
-  final VehicleScan scan;
-
-  @override
-  Widget build(BuildContext context) {
-    final date = DateFormat.yMMMd(
-      Localizations.localeOf(context).toString(),
-    ).add_Hm().format(scan.createdAt.toLocal());
-    final locationLabel =
-        scan.location.displayName ??
-        scan.location.city ??
-        '${scan.location.latitude.toStringAsFixed(3)}, '
-            '${scan.location.longitude.toStringAsFixed(3)}';
-    final subtitle = _historyVehicleSubtitle(scan, s);
-    final recognition = s.historyVehicleSummary(subtitle);
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppShape.thumbnail),
-              child: SizedBox(
-                width: 72,
-                height: 72,
-                child: ScanImageDisplay(
-                  heroTag: ScanImageDisplay.heroTagFor(scan.id),
-                  localImagePath: scan.localImagePath,
-                  remoteImageUrl: scan.remoteImageUrl,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    date,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    locationLabel,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    recognition,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.65),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                ScanStatusBadge(
-                  status: scan.status,
-                  label: s.scanStatus(scan.status),
-                ),
-                if (scan.userCorrection != null) ...[
-                  const SizedBox(height: 6),
-                  UserCorrectedBadge(label: s.correctedByUserLabel),
-                ],
-                if (scan.isPublic)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      s.historyPublicBadge,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ),
-              ],
             ),
           ],
         ),

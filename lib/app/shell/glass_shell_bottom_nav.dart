@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../core/haptics/app_haptics.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_effects.dart';
+import '../../core/theme/app_radius.dart';
 import '../../core/ui/app_motion.dart';
 import '../../core/ui/app_shape.dart';
 import '../../core/ui/glass/glass_bottom_bar.dart';
 
-/// Pływająca nawigacja shell (History | Scan | Settings) — indeksy gałęzi go_router:
-/// 0 = skan, 1 = historia, 2 = ustawienia. Wizualnie środek to skan.
+/// Pływająca nawigacja shell (History | Scan | Settings).
 class GlassShellBottomNav extends StatelessWidget {
   const GlassShellBottomNav({
     required this.currentBranchIndex,
@@ -32,55 +35,61 @@ class GlassShellBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final idx = currentBranchIndex;
 
     return Semantics(
       container: true,
       label: 'Navigation',
       child: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: SizedBox(
-          height: 76,
+          height: 78,
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.bottomCenter,
             children: [
-              GlassBottomBar(
-                blurSigma: AppShape.blurNavBar,
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: _SideNavItem(
-                        icon: Icons.history_rounded,
-                        label: historyLabel,
-                        selected: idx == 1,
-                        onTap: () => _select(1),
-                        semanticLabel: historyLabel,
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  boxShadow: AppEffects.navBar,
+                ),
+                child: GlassBottomBar(
+                  blurSigma: AppShape.blurNavBar,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _SideNavItem(
+                          icon: Icons.history_rounded,
+                          label: historyLabel,
+                          selected: idx == 1,
+                          onTap: () => _select(1),
+                          semanticLabel: historyLabel,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 72),
-                    Expanded(
-                      child: _SideNavItem(
-                        icon: Icons.tune_rounded,
-                        label: settingsLabel,
-                        selected: idx == 2,
-                        onTap: () => _select(2),
-                        semanticLabel: settingsLabel,
+                      const SizedBox(width: 76),
+                      Expanded(
+                        child: _SideNavItem(
+                          icon: Icons.tune_rounded,
+                          label: settingsLabel,
+                          selected: idx == 2,
+                          onTap: () => _select(2),
+                          semanticLabel: settingsLabel,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               Positioned(
-                top: -14,
+                top: -16,
                 child: _CenterScanFab(
                   label: scanLabel,
                   selected: idx == 0,
                   onTap: () => _select(0),
-                  scheme: scheme,
                 ),
               ),
             ],
@@ -108,57 +117,54 @@ class _SideNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
       label: semanticLabel,
       selected: selected,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: AnimatedContainer(
-          duration: AppMotion.fast,
-          curve: AppMotion.emphasizedDecelerate,
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          duration: AppDurations.fast,
+          curve: AppDurations.standard,
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             color: selected
-                ? scheme.primary.withValues(alpha: 0.1)
+                ? AppColors.primaryRed.withValues(alpha: 0.12)
                 : Colors.transparent,
+            border: selected
+                ? Border.all(
+                    color: AppColors.primaryRed.withValues(alpha: 0.35),
+                  )
+                : null,
           ),
-          child: AnimatedScale(
-            scale: selected ? 1.02 : 1,
-            duration: AppMotion.fast,
-            curve: AppMotion.emphasizedDecelerate,
-            child: AnimatedOpacity(
-              opacity: selected ? 1 : 0.72,
-              duration: AppMotion.fast,
-              curve: AppMotion.standard,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 22,
-                      color: selected ? scheme.primary : scheme.onSurface,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: selected ? scheme.primary : scheme.onSurface,
-                      ),
-                    ),
-                  ],
+          child: AnimatedOpacity(
+            opacity: selected ? 1 : 0.7,
+            duration: AppDurations.fast,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 22,
+                  color: selected
+                      ? AppColors.primaryRed
+                      : AppColors.textSecondary,
                 ),
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected
+                        ? AppColors.primaryRed
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -172,13 +178,11 @@ class _CenterScanFab extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    required this.scheme,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final ColorScheme scheme;
 
   @override
   Widget build(BuildContext context) {
@@ -192,40 +196,44 @@ class _CenterScanFab extends StatelessWidget {
           onTap: onTap,
           customBorder: const CircleBorder(),
           child: AnimatedScale(
-            scale: selected ? 1.08 : 1,
+            scale: selected ? 1.06 : 1,
             duration: AppMotion.normal,
             curve: AppMotion.emphasizedDecelerate,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                GlassBottomBar(
-                  blurSigma: AppShape.blurNavFab,
-                  padding: const EdgeInsets.all(12),
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          scheme.primary.withValues(alpha: 0.35),
-                          scheme.primary.withValues(alpha: 0.08),
-                        ],
-                      ),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surfaceElevated,
+                    border: Border.all(
+                      color: selected
+                          ? AppColors.primaryRed
+                          : AppColors.divider,
+                      width: selected ? 2.5 : 1.5,
                     ),
-                    child: Icon(
-                      Icons.photo_camera_rounded,
-                      color: scheme.primary,
-                      size: 28,
-                    ),
+                    boxShadow: selected
+                        ? AppEffects.shutterGlow()
+                        : AppEffects.navBar,
+                  ),
+                  child: Icon(
+                    Icons.photo_camera_rounded,
+                    color: selected
+                        ? AppColors.primaryRed
+                        : AppColors.textPrimary,
+                    size: 28,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   label,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: scheme.primary,
+                    color: selected
+                        ? AppColors.primaryRed
+                        : AppColors.textSecondary,
                   ),
                 ),
               ],

@@ -4,13 +4,16 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../app/shell/main_shell_layout.dart';
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/locale/app_strings.dart';
-import '../../../../core/ui/app_motion.dart';
-import '../../../../core/ui/app_shape.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/ui/glass/glass_card.dart';
 import '../../domain/vehicle_scan.dart';
 import '../../domain/vehicle_scan_status.dart';
 import '../cubit/scan_cubit.dart';
 import '../cubit/scan_state.dart';
+import '../widgets/premium_capture_button.dart';
+import '../widgets/scan_camera_overlay.dart';
 
 class ScanScreen extends StatelessWidget {
   const ScanScreen({super.key});
@@ -40,7 +43,7 @@ class ScanScreen extends StatelessWidget {
               state.phase == ScanFlowPhase.capturing ||
               state.phase == ScanFlowPhase.saving;
 
-          final showRadar =
+          final showOverlay =
               state.phase != ScanFlowPhase.success &&
               state.phase != ScanFlowPhase.error &&
               !busy;
@@ -53,266 +56,155 @@ class ScanScreen extends StatelessWidget {
           }
 
           return Scaffold(
-            appBar: AppBar(title: Text(s.scanTabTitle)),
-            body: Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    s.scanIntro,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.72),
+            extendBodyBehindAppBar: true,
+            appBar: AppBar(
+              title: Text(s.scanTabTitle),
+              backgroundColor: Colors.transparent,
+            ),
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (state.phase == ScanFlowPhase.success &&
+                    state.savedScan != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      kToolbarHeight + 8,
+                      AppSpacing.screenH,
+                      0,
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (flowHint() != null) ...[
-                    Text(
-                      flowHint()!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  if (state.phase == ScanFlowPhase.success &&
-                      state.savedScan != null)
-                    _SuccessCard(
+                    child: _SuccessCard(
                       s: s,
                       scan: state.savedScan!,
                       backgroundQueued: state.backgroundQueued,
-                    )
-                  else if (state.errorMessage != null)
-                    _ErrorCard(
+                    ),
+                  )
+                else if (state.errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      kToolbarHeight + 8,
+                      AppSpacing.screenH,
+                      0,
+                    ),
+                    child: _ErrorCard(
                       message: state.errorMessage!,
                       dismissLabel: s.ok,
                       onDismiss: () =>
                           context.read<ScanCubit>().clearTransient(),
                     ),
-                  if (state.phase == ScanFlowPhase.success ||
-                      state.errorMessage != null)
-                    const SizedBox(height: 16),
-                  Expanded(
+                  ),
+                if (flowHint() != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      8,
+                      AppSpacing.screenH,
+                      0,
+                    ),
+                    child: Text(
+                      flowHint()!,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppColors.primaryRed,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.sm,
+                      state.phase == ScanFlowPhase.success ||
+                              state.errorMessage != null
+                          ? AppSpacing.sm
+                          : kToolbarHeight + 4,
+                      AppSpacing.sm,
+                      bottomPad + AppSpacing.md,
+                    ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppShape.headerImage),
+                      borderRadius: BorderRadius.circular(AppRadius.header),
                       child: ColoredBox(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
+                        color: AppColors.surfaceElevated,
                         child: Stack(
+                          fit: StackFit.expand,
                           alignment: Alignment.center,
                           children: [
-                            Positioned(
-                              top: 24,
-                              child: Icon(
-                                Icons.photo_camera_outlined,
-                                size: 56,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.22),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: RadialGradient(
+                                  center: const Alignment(0, -0.2),
+                                  radius: 1.1,
+                                  colors: [
+                                    AppColors.surfaceHighlight.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    AppColors.surface,
+                                  ],
+                                ),
                               ),
                             ),
-                            if (showRadar) const _RadarPulse(),
-                            _ScanCaptureControl(
-                              busy: busy,
-                              label: s.scanButton,
-                              semanticLabel: s.scanButton,
-                              onCapture: () {
-                                AppHaptics.lightImpact();
-                                context.read<ScanCubit>().captureAndSaveScan(
-                                  lang,
-                                );
-                              },
+                            Icon(
+                              Icons.photo_camera_outlined,
+                              size: 48,
+                              color: AppColors.textMuted.withValues(
+                                alpha: 0.35,
+                              ),
+                            ),
+                            if (showOverlay) const ScanCameraOverlay(),
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: AppSpacing.xl,
+                              child: PremiumCaptureButton(
+                                busy: busy,
+                                label: s.scanButton,
+                                onPressed: busy
+                                    ? null
+                                    : () {
+                                        AppHaptics.lightImpact();
+                                        context
+                                            .read<ScanCubit>()
+                                            .captureAndSaveScan(lang);
+                                      },
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
                   ),
-                  if (state.phase == ScanFlowPhase.success) ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton(
+                ),
+                if (state.phase == ScanFlowPhase.success)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      0,
+                      AppSpacing.screenH,
+                      bottomPad > 0 ? 4 : AppSpacing.md,
+                    ),
+                    child: OutlinedButton(
                       onPressed: () =>
                           context.read<ScanCubit>().clearTransient(),
                       child: Text(s.nextScan),
                     ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _RadarPulse extends StatefulWidget {
-  const _RadarPulse();
-
-  @override
-  State<_RadarPulse> createState() => _RadarPulseState();
-}
-
-class _RadarPulseState extends State<_RadarPulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2400),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (context, child) {
-          return SizedBox(
-            width: 200,
-            height: 200,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                for (var i = 0; i < 2; i++)
-                  _ring(context, primary, (_c.value + i * 0.5) % 1.0),
+                  )
+                else
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      0,
+                      AppSpacing.screenH,
+                      bottomPad > 0 ? 0 : AppSpacing.md,
+                    ),
+                    child: Text(
+                      s.scanIntro,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
               ],
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _ring(BuildContext context, Color primary, double t) {
-    final scale = 0.88 + t * 0.28;
-    final opacity = (1 - t) * 0.35;
-    return Transform.scale(
-      scale: scale,
-      child: Opacity(
-        opacity: opacity.clamp(0.0, 1.0),
-        child: IgnorePointer(
-          child: Container(
-            width: 132,
-            height: 132,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: primary.withValues(alpha: 0.45),
-                width: 1.2,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScanCaptureControl extends StatefulWidget {
-  const _ScanCaptureControl({
-    required this.busy,
-    required this.label,
-    required this.semanticLabel,
-    required this.onCapture,
-  });
-
-  final bool busy;
-  final String label;
-  final String semanticLabel;
-  final VoidCallback onCapture;
-
-  @override
-  State<_ScanCaptureControl> createState() => _ScanCaptureControlState();
-}
-
-class _ScanCaptureControlState extends State<_ScanCaptureControl> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final scale = (widget.busy || _pressed) ? 0.92 : 1.0;
-
-    return Semantics(
-      button: true,
-      label: widget.semanticLabel,
-      enabled: !widget.busy,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedScale(
-            scale: scale,
-            duration: AppMotion.fast,
-            curve: AppMotion.snappy,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTapDown: widget.busy
-                    ? null
-                    : (_) => setState(() => _pressed = true),
-                onTapCancel: widget.busy
-                    ? null
-                    : () => setState(() => _pressed = false),
-                onTap: widget.busy
-                    ? null
-                    : () {
-                        setState(() => _pressed = false);
-                        widget.onCapture();
-                      },
-                child: Ink(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: scheme.primaryContainer,
-                    boxShadow: [
-                      BoxShadow(
-                        color: scheme.shadow.withValues(alpha: 0.18),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: widget.busy
-                        ? SizedBox(
-                            width: 30,
-                            height: 30,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: scheme.primary,
-                            ),
-                          )
-                        : Icon(
-                            Icons.photo_camera_rounded,
-                            size: 44,
-                            color: scheme.primary,
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            widget.label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurface.withValues(alpha: 0.75),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -372,14 +264,9 @@ class _SuccessCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Text(subtitle),
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.xs),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 6),
           if (!recognized &&
               !failed &&
@@ -388,20 +275,12 @@ class _SuccessCard extends StatelessWidget {
               scan.status == VehicleScanStatus.waitingForRecognition)
             Text(
               s.scanRecognitionRunningInBackground,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.65),
-              ),
+              style: Theme.of(context).textTheme.bodySmall,
             )
           else if (!recognized && !failed && scan.pendingSync)
             Text(
               s.scanAiPendingHint,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.65),
-              ),
+              style: Theme.of(context).textTheme.bodySmall,
             )
           else if (!recognized &&
               !failed &&
@@ -409,20 +288,12 @@ class _SuccessCard extends StatelessWidget {
               scan.status == VehicleScanStatus.waitingForRecognition)
             Text(
               s.scanAiPendingCloudHint,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.65),
-              ),
+              style: Theme.of(context).textTheme.bodySmall,
             )
           else if (failed)
             Text(
               s.scanAiRetryFromDetailsHint,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.65),
-              ),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
         ],
       ),
@@ -444,19 +315,19 @@ class _ErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Theme.of(context).colorScheme.errorContainer,
+      color: AppColors.error,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               message,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onErrorContainer,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppColors.errorForeground),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.sm),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
