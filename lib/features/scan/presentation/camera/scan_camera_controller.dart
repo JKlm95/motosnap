@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/widgets.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'scan_camera_flash.dart';
 import 'scan_camera_state.dart';
 
 /// Zarządza embedded [CameraController]: init, pause/resume, capture, focus, flash.
@@ -63,10 +64,21 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
     if (_disposed || !_tabActive) {
       return;
     }
-    if (_state.lifecycle == ScanCameraLifecycle.ready &&
-        _state.controller?.value.isInitialized == true) {
+
+    final existing = _state.controller;
+    if (_state.lifecycle == ScanCameraLifecycle.paused &&
+        existing != null &&
+        existing.value.isInitialized) {
+      await _resumePreview();
       return;
     }
+
+    if (_state.lifecycle == ScanCameraLifecycle.ready &&
+        existing?.value.isInitialized == true) {
+      await _forceTorchOff('tab-active');
+      return;
+    }
+
     if (_state.lifecycle == ScanCameraLifecycle.initializing) {
       return;
     }
@@ -76,6 +88,7 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
       _state.copyWith(
         lifecycle: ScanCameraLifecycle.initializing,
         clearError: true,
+        flashMode: ScanCameraFlash.defaultMode,
       ),
     );
 
@@ -128,13 +141,17 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
 
-      final supportsFlash = await _probeFlashSupport(controller);
+      await _forceTorchOff('init', controller: controller);
+
+      final supportsFlash = await ScanCameraFlash.detectSupport(
+        controller.setFlashMode,
+      );
 
       _setState(
         ScanCameraState(
           lifecycle: ScanCameraLifecycle.ready,
           controller: controller,
-          flashMode: FlashMode.off,
+          flashMode: ScanCameraFlash.defaultMode,
           supportsFlash: supportsFlash,
         ),
       );
@@ -163,36 +180,26 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> _probeFlashSupport(CameraController controller) async {
-    try {
-      await controller.setFlashMode(FlashMode.torch);
-      await controller.setFlashMode(FlashMode.off);
-      return true;
-    } on Object {
-      return false;
+  Future<void> _forceTorchOff(String reason, {CameraController? controller}) {
+    final c = controller ?? _state.controller;
+    if (c == null || !c.value.isInitialized) {
+      return Future<void>.value();
     }
-  }
-
-  Future<void> _ensureTorchOff() async {
-    final c = _state.controller;
-    if (c == null ||
-        !c.value.isInitialized ||
-        !_state.supportsFlash ||
-        _state.flashMode == FlashMode.off) {
-      return;
-    }
-    try {
-      await c.setFlashMode(FlashMode.off);
-      if (!_disposed) {
-        _setState(_state.copyWith(flashMode: FlashMode.off));
-      }
-    } on Object {
-      // ignore
-    }
+    return ScanCameraFlash.forceOff(
+      reason: reason,
+      setFlashMode: c.setFlashMode,
+      onLogicalMode: controller == null
+          ? (mode) {
+              if (!_disposed && _state.flashMode != mode) {
+                _setState(_state.copyWith(flashMode: mode));
+              }
+            }
+          : null,
+    );
   }
 
   Future<void> _pausePreview() async {
-    await _ensureTorchOff();
+    await _forceTorchOff('pause');
     final c = _state.controller;
     if (c == null || !c.value.isInitialized) {
       return;
@@ -200,7 +207,12 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await c.pausePreview();
       if (!_disposed) {
-        _setState(_state.copyWith(lifecycle: ScanCameraLifecycle.paused));
+        _setState(
+          _state.copyWith(
+            lifecycle: ScanCameraLifecycle.paused,
+            flashMode: ScanCameraFlash.defaultMode,
+          ),
+        );
       }
     } on Object {
       // ignore — device może już zwolnić kamerę
@@ -215,8 +227,14 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
     if (c != null && c.value.isInitialized) {
       try {
         await c.resumePreview();
+        await _forceTorchOff('resume');
         if (!_disposed) {
-          _setState(_state.copyWith(lifecycle: ScanCameraLifecycle.ready));
+          _setState(
+            _state.copyWith(
+              lifecycle: ScanCameraLifecycle.ready,
+              flashMode: ScanCameraFlash.defaultMode,
+            ),
+          );
         }
         return;
       } on Object {
@@ -249,13 +267,16 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> toggleFlash() async {
+    if (!_tabActive ||
+        _state.lifecycle != ScanCameraLifecycle.ready ||
+        _disposed) {
+      return;
+    }
     final c = _state.controller;
     if (c == null || !_state.supportsFlash) {
       return;
     }
-    final next = _state.flashMode == FlashMode.off
-        ? FlashMode.torch
-        : FlashMode.off;
+    final next = ScanCameraFlash.toggled(_state.flashMode);
     try {
       await c.setFlashMode(next);
       _setState(_state.copyWith(flashMode: next));
@@ -299,7 +320,7 @@ class ScanCameraController extends ChangeNotifier with WidgetsBindingObserver {
     _initGeneration++;
     _focusClearTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_ensureTorchOff());
+    unawaited(_forceTorchOff('dispose'));
     _state.controller?.dispose();
     super.dispose();
   }
