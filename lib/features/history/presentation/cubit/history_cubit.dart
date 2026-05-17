@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/locale/app_strings.dart';
+import '../../../../core/sync/manual_scan_sync_coordinator.dart';
+import '../../../../core/sync/manual_scan_sync_result.dart';
+import '../../../../core/sync/sync_messages.dart';
 import '../../../scan/domain/scan_repository.dart';
 import '../../../scan/domain/vehicle_analysis_exception.dart';
 import '../../../scan/domain/vehicle_analysis_service.dart';
@@ -13,7 +16,8 @@ import 'history_state.dart';
 class HistoryCubit extends Cubit<HistoryState> {
   HistoryCubit(
     this._repository,
-    this._analysis, {
+    this._analysis,
+    this._sync, {
     required String uiLanguageCode,
   }) : _uiLang = uiLanguageCode,
        super(const HistoryState()) {
@@ -46,6 +50,7 @@ class HistoryCubit extends Cubit<HistoryState> {
 
   final ScanRepository _repository;
   final VehicleAnalysisService _analysis;
+  final ManualScanSyncCoordinator _sync;
   final String _uiLang;
 
   StreamSubscription<List<VehicleScan>>? _subscription;
@@ -64,8 +69,48 @@ class HistoryCubit extends Cubit<HistoryState> {
     emit(state.copyWith(sort: sort));
   }
 
+  /// Pełny sync z chmurą (upload + pull), potem lista z [watchScans].
   Future<void> refresh() async {
-    emit(state.copyWith(isLoading: true, clearErrorMessage: true));
+    final previousScans = state.scans;
+    emit(
+      state.copyWith(
+        isLoading: true,
+        clearErrorMessage: true,
+        clearTransientSnack: true,
+      ),
+    );
+
+    final strings = AppStrings.fromLanguageCode(_uiLang);
+    final result = await _sync.syncNow(languageCode: _uiLang);
+
+    switch (result) {
+      case ManualScanSyncSuccess(:final summary):
+        emit(
+          state.copyWith(
+            isLoading: false,
+            listAnimationEpoch: summary.hasActivity
+                ? state.listAnimationEpoch + 1
+                : state.listAnimationEpoch,
+            transientSnackMessage: SyncMessages.historyRefreshSnack(
+              strings,
+              summary,
+            ),
+          ),
+        );
+      case ManualScanSyncCloudUnavailable():
+        await _reloadLocalOnly(previousScans);
+      case ManualScanSyncFailure(:final userError):
+        emit(
+          state.copyWith(
+            isLoading: false,
+            scans: previousScans.isNotEmpty ? previousScans : state.scans,
+            transientSnackMessage: SyncMessages.userError(strings, userError),
+          ),
+        );
+    }
+  }
+
+  Future<void> _reloadLocalOnly(List<VehicleScan> fallbackScans) async {
     try {
       final scans = await _repository.getRecentScans(1 << 20);
       emit(
@@ -75,13 +120,17 @@ class HistoryCubit extends Cubit<HistoryState> {
           listAnimationEpoch: state.listAnimationEpoch + 1,
         ),
       );
-    } catch (_) {
+    } on Object {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: AppStrings.fromLanguageCode(
-            _uiLang,
-          ).historyRefreshError,
+          scans: fallbackScans,
+          errorMessage: fallbackScans.isEmpty
+              ? AppStrings.fromLanguageCode(_uiLang).historyRefreshError
+              : null,
+          transientSnackMessage: fallbackScans.isNotEmpty
+              ? AppStrings.fromLanguageCode(_uiLang).errorSyncCloudUnavailable
+              : null,
         ),
       );
     }

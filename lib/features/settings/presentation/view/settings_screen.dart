@@ -90,9 +90,14 @@ class SettingsScreen extends StatelessWidget {
                           if (syncState.status == ManualSyncStatus.done &&
                               syncState.summary != null) {
                             final sum = syncState.summary!;
-                            if (sum.failed == 0 && sum.uploaded > 0) {
+                            final hadWork = sum.hasActivity;
+                            if (sum.failed == 0 && hadWork) {
                               AppHaptics.success();
-                            } else if (sum.uploaded == 0 && sum.failed > 0) {
+                            } else if (!hadWork) {
+                              AppHaptics.lightImpact();
+                            } else if (sum.failed > 0 &&
+                                sum.uploaded == 0 &&
+                                sum.totalPulled == 0) {
                               AppHaptics.error();
                             } else if (sum.failed > 0) {
                               AppHaptics.warning();
@@ -100,10 +105,15 @@ class SettingsScreen extends StatelessWidget {
                               AppHaptics.success();
                             }
                             messenger.clearSnackBars();
+                            final summaryLine = loc.syncDoneSnackDetailed(
+                              uploaded: sum.uploaded,
+                              downloaded: sum.downloaded,
+                              updated: sum.updated,
+                              failed: sum.failed,
+                            );
                             final body = sum.failed > 0
-                                ? '${loc.errorSyncScanConnection}\n\n'
-                                      '${loc.syncDoneSnack(sum.uploaded, sum.failed)}'
-                                : loc.syncDoneSnack(sum.uploaded, sum.failed);
+                                ? '${loc.errorSyncScanConnection}\n\n$summaryLine'
+                                : summaryLine;
                             messenger.showSnackBar(
                               SnackBar(content: Text(body)),
                             );
@@ -114,6 +124,11 @@ class SettingsScreen extends StatelessWidget {
                             final msg = switch (syncState.userError!) {
                               SyncUserError.cloudDisabled =>
                                 loc.errorSyncCloudUnavailable,
+                              SyncUserError.notSignedIn =>
+                                loc.errorSyncNotSignedIn,
+                              SyncUserError.permissionDenied =>
+                                loc.errorSyncPermissionDenied,
+                              SyncUserError.timedOut => loc.errorSyncTimedOut,
                               SyncUserError.generic => loc.errorSyncGeneric,
                             };
                             messenger.clearSnackBars();

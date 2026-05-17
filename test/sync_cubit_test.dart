@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motosnap/core/firebase/cloud_sync_availability.dart';
 import 'package:motosnap/core/remote/sync_summary.dart';
+import 'package:motosnap/core/sync/manual_scan_sync_coordinator.dart';
 import 'package:motosnap/features/scan/domain/pending_scan_sync.dart';
 import 'package:motosnap/features/scan/domain/scan_processing_coordinator.dart';
-import 'package:motosnap/features/scan/domain/scan_location.dart';
 import 'package:motosnap/features/scan/domain/scan_repository.dart';
 import 'package:motosnap/features/scan/domain/user_vehicle_correction.dart';
 import 'package:motosnap/features/scan/domain/vehicle_analysis_exception.dart';
@@ -13,11 +13,26 @@ import 'package:motosnap/features/scan/domain/vehicle_scan.dart';
 import 'package:motosnap/features/scan/domain/vehicle_scan_status.dart';
 import 'package:motosnap/features/settings/presentation/cubit/sync_cubit.dart';
 import 'package:motosnap/features/settings/presentation/cubit/sync_state.dart';
+import 'package:motosnap/features/scan/domain/scan_location.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() {
-  test('SyncCubit — brak backendu (null) kończy się błędem', () async {
-    final cubit = SyncCubit(null, _FakeRepo());
+  ManualScanSyncCoordinator coord({PendingScanSync? pending}) {
+    return ManualScanSyncCoordinator(
+      repository: _FakeRepo(),
+      cloudAvailability: const CloudSyncAvailability(available: true),
+      pendingSync: pending,
+    );
+  }
+
+  test('SyncCubit — brak backendu (null pending) kończy się błędem', () async {
+    final cubit = SyncCubit(
+      ManualScanSyncCoordinator(
+        repository: _FakeRepo(),
+        cloudAvailability: const CloudSyncAvailability(available: false),
+      ),
+      uiLanguageCode: 'pl',
+    );
     await cubit.syncNow();
     expect(cubit.state.status, ManualSyncStatus.error);
     expect(cubit.state.userError, SyncUserError.cloudDisabled);
@@ -25,7 +40,10 @@ void main() {
   });
 
   test('SyncCubit — stub zwraca podsumowanie', () async {
-    final cubit = SyncCubit(_StubPendingSync(), _FakeRepo());
+    final cubit = SyncCubit(
+      coord(pending: _StubPendingSync()),
+      uiLanguageCode: 'pl',
+    );
     await cubit.syncNow();
     expect(cubit.state.status, ManualSyncStatus.done);
     expect(cubit.state.summary, const SyncSummary(uploaded: 1, failed: 0));
@@ -35,10 +53,16 @@ void main() {
   test(
     'SyncCubit — częściowa porażka: status done i poprawne failed',
     () async {
-      final cubit = SyncCubit(_StubPendingSyncWithFailures(), _FakeRepo());
+      final cubit = SyncCubit(
+        coord(pending: _StubPendingSyncWithFailures()),
+        uiLanguageCode: 'pl',
+      );
       await cubit.syncNow();
       expect(cubit.state.status, ManualSyncStatus.done);
-      expect(cubit.state.summary, const SyncSummary(uploaded: 1, failed: 2));
+      expect(
+        cubit.state.summary,
+        const SyncSummary(uploaded: 1, failed: 2, updated: 1),
+      );
       await cubit.close();
     },
   );
@@ -53,9 +77,13 @@ void main() {
       analysis: analysis,
     );
     final cubit = SyncCubit(
-      _PendingSyncMarksUploaded(),
-      repo,
-      processingCoordinator: queue,
+      ManualScanSyncCoordinator(
+        repository: repo,
+        cloudAvailability: const CloudSyncAvailability(available: true),
+        pendingSync: _PendingSyncMarksUploaded(),
+        processingCoordinator: queue,
+      ),
+      uiLanguageCode: 'pl',
     );
     await cubit.syncNow();
     expect(cubit.state.status, ManualSyncStatus.done);
@@ -74,9 +102,13 @@ void main() {
       analysis: analysis,
     );
     final cubit = SyncCubit(
-      _PendingSyncNoUploads(),
-      repo,
-      processingCoordinator: queue,
+      ManualScanSyncCoordinator(
+        repository: repo,
+        cloudAvailability: const CloudSyncAvailability(available: true),
+        pendingSync: _PendingSyncNoUploads(),
+        processingCoordinator: queue,
+      ),
+      uiLanguageCode: 'pl',
     );
     await cubit.syncNow();
     await queue.waitUntilIdle();
@@ -101,7 +133,7 @@ final class _StubPendingSync implements PendingScanSync {
 final class _StubPendingSyncWithFailures implements PendingScanSync {
   @override
   Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
-    return const SyncSummary(uploaded: 1, failed: 2);
+    return const SyncSummary(uploaded: 1, failed: 2, updated: 1);
   }
 
   @override

@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:motosnap/core/firebase/cloud_sync_availability.dart';
+import 'package:motosnap/core/sync/manual_scan_sync_coordinator.dart';
 import 'package:motosnap/core/location/current_position_reader.dart';
 import 'package:motosnap/core/location/passthrough_location_enricher.dart';
 import 'package:motosnap/core/media/image_storage_service.dart';
@@ -74,6 +75,12 @@ void main() {
               create: (_) => HistoryCubit(
                 repo,
                 NoOpVehicleAnalysisService(),
+                ManualScanSyncCoordinator(
+                  repository: repo,
+                  cloudAvailability: const CloudSyncAvailability(
+                    available: false,
+                  ),
+                ),
                 uiLanguageCode: 'pl',
               ),
               child: const HistoryScreen(),

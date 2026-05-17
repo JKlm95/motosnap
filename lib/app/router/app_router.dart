@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/media/camera_capture_service.dart';
+import '../../core/sync/manual_scan_sync_coordinator.dart';
 import '../../core/ui/app_motion.dart';
 import '../../core/permissions/scan_permissions_service.dart';
 import '../../features/auth/domain/auth_repository.dart';
@@ -14,7 +15,6 @@ import '../../features/auth/presentation/register/cubit/register_cubit.dart';
 import '../../features/auth/presentation/register/register_screen.dart';
 import '../../features/history/presentation/cubit/history_cubit.dart';
 import '../../features/history/presentation/view/history_screen.dart';
-import '../../features/scan/domain/pending_scan_sync.dart';
 import '../../features/scan/domain/scan_processing_coordinator.dart';
 import '../../features/scan/domain/scan_repository.dart';
 import '../../features/scan/domain/vehicle_analysis_service.dart';
@@ -140,6 +140,7 @@ abstract final class AppRouter {
                     create: (_) => HistoryCubit(
                       context.read<ScanRepository>(),
                       context.read<VehicleAnalysisService>(),
+                      context.read<ManualScanSyncCoordinator>(),
                       uiLanguageCode: Localizations.localeOf(
                         context,
                       ).languageCode,
@@ -155,10 +156,10 @@ abstract final class AppRouter {
                   path: AppRoutes.settingsRelative,
                   builder: (context, state) => BlocProvider(
                     create: (_) => SyncCubit(
-                      context.read<PendingScanSync?>(),
-                      context.read<ScanRepository>(),
-                      processingCoordinator: context
-                          .read<ScanProcessingCoordinator?>(),
+                      context.read<ManualScanSyncCoordinator>(),
+                      uiLanguageCode: Localizations.localeOf(
+                        context,
+                      ).languageCode,
                     ),
                     child: const SettingsScreen(),
                   ),

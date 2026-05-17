@@ -10,6 +10,7 @@ import '../core/location/geocoding_location_enricher.dart';
 import '../core/media/camera_capture_service.dart';
 import '../core/media/image_storage_service.dart';
 import '../core/remote/cloud_scan_sync_service.dart';
+import '../core/sync/manual_scan_sync_coordinator.dart';
 import '../core/storage/scan_local_data_source.dart';
 import '../core/storage/settings_local_data_source.dart';
 import '../features/auth/data/firebase_auth_repository.dart';
@@ -100,6 +101,13 @@ class AppBootstrap {
           )
         : null;
 
+    final manualScanSync = ManualScanSyncCoordinator(
+      repository: scanRepository,
+      cloudAvailability: cloudAvailability,
+      pendingSync: firebaseCloudSync,
+      processingCoordinator: scanProcessing,
+    );
+
     final settingsRepository = SettingsRepositoryImpl(settingsLocal);
     final cameraCapture = CameraCaptureService();
 
@@ -124,6 +132,9 @@ class AppBootstrap {
         ),
         RepositoryProvider<CloudSyncAvailability>.value(
           value: cloudAvailability,
+        ),
+        RepositoryProvider<ManualScanSyncCoordinator>.value(
+          value: manualScanSync,
         ),
       ],
       child: BlocProvider(

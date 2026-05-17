@@ -278,15 +278,33 @@ class AppStrings {
   String get settingsSignOut => _pl ? 'Wyloguj' : 'Sign out';
   String get settingsSyncSection => _pl ? 'Synchronizacja' : 'Sync';
   String get settingsSyncReadyBody => _pl
-      ? 'Chmura jest dostępna. Skany oznaczone jako oczekujące na wysłanie możesz zsynchronizować jednym przyciskiem — dane zdjęcia i metadane trafią na Twoje konto.'
-      : 'Cloud is available. Scans marked as pending can be uploaded with one tap — image and metadata go to your account.';
+      ? 'Chmura jest dostępna. Przycisk synchronizuje skany w obie strony: wysyła oczekujące na wysłanie i pobiera status oraz wyniki AI z konta.'
+      : 'Cloud is available. Sync runs both ways: uploads pending scans and pulls status and AI results from your account.';
   String get settingsSyncOfflineBody => _pl
       ? 'Aplikacja działa bez pełnej konfiguracji Firebase (np. brak `flutterfire configure`). Skany pozostają tylko na tym urządzeniu.'
       : 'The app is running without full Firebase setup (e.g. missing `flutterfire configure`). Scans stay on this device only.';
   String get settingsSyncNow => _pl ? 'Synchronizuj teraz' : 'Sync now';
-  String syncDoneSnack(int ok, int failed) => _pl
-      ? 'Synchronizacja zakończona: wysłano $ok, błędy $failed.'
-      : 'Sync finished: uploaded $ok, failed $failed.';
+  String syncDoneSnack(int ok, int failed) => syncDoneSnackDetailed(
+    uploaded: ok,
+    downloaded: 0,
+    updated: 0,
+    failed: failed,
+  );
+
+  String syncDoneSnackDetailed({
+    required int uploaded,
+    required int downloaded,
+    required int updated,
+    required int failed,
+  }) {
+    if (_pl) {
+      return 'Synchronizacja: wysłano $uploaded, pobrano $downloaded, '
+          'zaktualizowano $updated, błędy $failed.';
+    }
+    return 'Sync: uploaded $uploaded, downloaded $downloaded, '
+        'updated $updated, failed $failed.';
+  }
+
   String get settingsLanguageSection => _pl ? 'Język' : 'Language';
   String get settingsLanguageTitle => _pl ? 'Język aplikacji' : 'App language';
   String get settingsLanguageSubtitle => _pl
@@ -319,6 +337,15 @@ class AppStrings {
   String get errorSyncGeneric => _pl
       ? 'Synchronizacja nie powiodła się. Sprawdź połączenie z siecią i spróbuj ponownie.'
       : 'Sync failed. Check your network connection and try again.';
+  String get errorSyncNotSignedIn => _pl
+      ? 'Zaloguj się ponownie, aby zsynchronizować skany.'
+      : 'Sign in again to sync your scans.';
+  String get errorSyncPermissionDenied => _pl
+      ? 'Brak dostępu do danych w chmurze. Sprawdź konto Firebase lub skontaktuj się z supportem.'
+      : 'No access to cloud data. Check your Firebase account or contact support.';
+  String get errorSyncTimedOut => _pl
+      ? 'Synchronizacja trwała zbyt długo. Spróbuj ponownie przy stabilnym łączu.'
+      : 'Sync timed out. Try again on a stable connection.';
 
   /// Po częściowym lub pełnym niepowodzeniu ręcznego syncu skanów (bez surowych błędów Firebase).
   String get errorSyncScanConnection => _pl

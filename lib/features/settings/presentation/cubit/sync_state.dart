@@ -1,11 +1,11 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/remote/sync_summary.dart';
+import '../../../../core/sync/sync_user_error.dart';
+
+export '../../../../core/sync/sync_user_error.dart';
 
 enum ManualSyncStatus { idle, running, done, error }
-
-/// Klasyfikacja błędu syncu dla mapowania na [AppStrings] w UI (bez surowego `e.toString()`).
-enum SyncUserError { cloudDisabled, generic }
 
 class SyncState extends Equatable {
   const SyncState({

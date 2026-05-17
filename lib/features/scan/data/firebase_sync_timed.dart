@@ -14,6 +14,7 @@ abstract final class FirebaseSyncPhase {
   static const firestoreReadExisting = 'firestore_read_existing';
   static const firestoreWrite = 'firestore_write';
   static const firestoreReadAfterWrite = 'firestore_read_after_write';
+  static const firestoreReadPull = 'firestore_read_pull';
 }
 
 /// Wartości [VehicleScan.syncLastError] — bez surowego tekstu Firebase w UI/Hive.
@@ -77,7 +78,8 @@ String firebaseSyncStoredErrorCode(Object error) {
       FirebaseSyncPhase.storageUpload =>
         FirebaseSyncStoredErrors.storageTimeout,
       FirebaseSyncPhase.firestoreReadExisting ||
-      FirebaseSyncPhase.firestoreReadAfterWrite =>
+      FirebaseSyncPhase.firestoreReadAfterWrite ||
+      FirebaseSyncPhase.firestoreReadPull =>
         FirebaseSyncStoredErrors.firestoreReadTimeout,
       FirebaseSyncPhase.firestoreWrite =>
         FirebaseSyncStoredErrors.firestoreWriteTimeout,

@@ -40,9 +40,7 @@ final class VehicleScanRemoteMerger {
       mergedRecognitionError = local.recognitionError;
     }
 
-    final remoteUserCorrection = _parseUserCorrection(
-      remote['user_correction'],
-    );
+    final remoteUserCorrection = parseUserCorrection(remote['user_correction']);
     final mergedUserCorrection = _mergeUserCorrection(
       local: local.userCorrection,
       remote: remoteUserCorrection,
@@ -108,7 +106,7 @@ final class VehicleScanRemoteMerger {
     return null;
   }
 
-  static UserVehicleCorrection? _parseUserCorrection(dynamic raw) {
+  static UserVehicleCorrection? parseUserCorrection(dynamic raw) {
     if (raw is! Map) {
       return null;
     }

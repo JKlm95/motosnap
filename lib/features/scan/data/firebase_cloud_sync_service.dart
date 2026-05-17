@@ -14,6 +14,7 @@ import '../domain/user_vehicle_correction.dart';
 import '../domain/vehicle_scan.dart';
 import '../domain/vehicle_scan_status.dart';
 import 'firebase_sync_timed.dart';
+import 'cloud_scan_remote_pull.dart';
 import 'vehicle_scan_remote_merger.dart';
 
 /// Konservatywna integracja z Firebase: automatyczny upload po zapisie lokalnym
@@ -37,7 +38,7 @@ final class FirebaseCloudSyncService
     // Świadomie puste: brak automatycznego uploadu w tej iteracji MVP.
   }
 
-  /// Wgrywa wszystkie lokalne skany z `pendingSync == true` dla zalogowanego użytkownika.
+  /// Upload lokalnych `pendingSync` + pull zmian z Firestore dla zalogowanego użytkownika.
   @override
   Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
     final user = _auth.currentUser;
@@ -47,6 +48,13 @@ final class FirebaseCloudSyncService
     final uid = user.uid;
     final all = await localRepository.getRecentScans(1 << 20);
     final pending = all.where((s) => s.pendingSync).toList();
+
+    if (kDebugMode) {
+      debugPrint(
+        '[Sync] start uid=$uid local=${all.length} pendingUpload=${pending.length}',
+      );
+    }
+
     var uploaded = 0;
     var failed = 0;
     final uploadedScanIds = <String>[];
@@ -56,6 +64,9 @@ final class FirebaseCloudSyncService
         await _uploadSingleScan(localRepository, uid, scan);
         uploaded++;
         uploadedScanIds.add(scan.id);
+        if (kDebugMode) {
+          debugPrint('[Sync] upload ok scan=${scan.id}');
+        }
       } on Object catch (e, st) {
         failed++;
         if (kDebugMode) {
@@ -83,11 +94,150 @@ final class FirebaseCloudSyncService
         }
       }
     }
+
+    final pull = await _pullRemoteChanges(localRepository, uid);
+    failed += pull.pullReadFailures;
+
+    if (kDebugMode) {
+      debugPrint(
+        '[Sync] done uploaded=$uploaded failed=$failed '
+        'downloaded=${pull.downloaded} updated=${pull.updated} '
+        'pullSkipped=${pull.skipped} pullReadFailures=${pull.pullReadFailures}',
+      );
+    }
+
     return SyncSummary(
       uploaded: uploaded,
       failed: failed,
       uploadedScanIds: List<String>.unmodifiable(uploadedScanIds),
+      downloaded: pull.downloaded,
+      updated: pull.updated,
+      downloadedScanIds: List<String>.unmodifiable(pull.downloadedScanIds),
+      updatedScanIds: List<String>.unmodifiable(pull.updatedScanIds),
     );
+  }
+
+  Future<
+    ({
+      int downloaded,
+      int updated,
+      List<String> downloadedScanIds,
+      List<String> updatedScanIds,
+      int skipped,
+      int pullReadFailures,
+    })
+  >
+  _pullRemoteChanges(ScanRepository localRepository, String uid) async {
+    final collection = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('scans');
+
+    final locals = await localRepository.getRecentScans(1 << 20);
+    final localById = {for (final s in locals) s.id: s};
+
+    if (kDebugMode) {
+      debugPrint('[Sync] pull local scans=${locals.length}');
+    }
+
+    final remoteDocs = <({String id, Map<String, dynamic> data})>[];
+    var pullReadFailures = 0;
+
+    // Odczyt per scanId (zamiast collection.get) — stabilniejsze na regułach / cache.
+    for (final scan in locals) {
+      try {
+        final snap = await _fetchScanDocument(collection.doc(scan.id));
+        if (!snap.exists) {
+          if (kDebugMode) {
+            debugPrint('[Sync] pull skip ${scan.id}: brak dokumentu w chmurze');
+          }
+          continue;
+        }
+        final data = snap.data();
+        if (data == null) {
+          continue;
+        }
+        remoteDocs.add((id: scan.id, data: Map<String, dynamic>.from(data)));
+      } on Object catch (e, st) {
+        pullReadFailures++;
+        if (kDebugMode) {
+          debugPrint('[Sync] pull read ${scan.id} FAILED: $e\n$st');
+        }
+      }
+    }
+
+    // Opcjonalnie: skany tylko w chmurze (bez listy lokalnej nie znajdziemy ich inaczej).
+    try {
+      final cloudOnly = await _fetchCloudOnlyDocuments(collection, localById);
+      remoteDocs.addAll(cloudOnly);
+      if (kDebugMode && cloudOnly.isNotEmpty) {
+        debugPrint('[Sync] pull cloud-only docs=${cloudOnly.length}');
+      }
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[Sync] pull cloud-only list skipped: $e\n$st');
+      }
+    }
+
+    final applied = await CloudScanRemotePull.applyRemoteDocuments(
+      localRepository: localRepository,
+      localById: localById,
+      remoteDocs: remoteDocs,
+    );
+
+    return (
+      downloaded: applied.downloaded,
+      updated: applied.updated,
+      downloadedScanIds: applied.downloadedScanIds,
+      updatedScanIds: applied.updatedScanIds,
+      skipped: applied.skipped,
+      pullReadFailures: pullReadFailures,
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _fetchScanDocument(
+    DocumentReference<Map<String, dynamic>> doc,
+  ) async {
+    try {
+      return await firebaseSyncTimed(
+        doc.get(const GetOptions(source: Source.server)),
+        kFirebaseSyncFirestoreReadTimeout,
+        FirebaseSyncPhase.firestoreReadPull,
+      );
+    } on FirebaseException catch (e) {
+      if (e.code == 'unavailable' || e.code == 'failed-precondition') {
+        if (kDebugMode) {
+          debugPrint('[Sync] pull ${doc.id} server fetch fallback to default');
+        }
+        return firebaseSyncTimed(
+          doc.get(),
+          kFirebaseSyncFirestoreReadTimeout,
+          FirebaseSyncPhase.firestoreReadPull,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<({String id, Map<String, dynamic> data})>>
+  _fetchCloudOnlyDocuments(
+    CollectionReference<Map<String, dynamic>> collection,
+    Map<String, VehicleScan> localById,
+  ) async {
+    final snap = await firebaseSyncTimed(
+      collection.get(const GetOptions(source: Source.server)),
+      kFirebaseSyncFirestoreReadTimeout,
+      FirebaseSyncPhase.firestoreReadPull,
+    );
+    final out = <({String id, Map<String, dynamic> data})>[];
+    for (final d in snap.docs) {
+      if (localById.containsKey(d.id)) {
+        continue;
+      }
+      final data = d.data();
+      out.add((id: d.id, data: Map<String, dynamic>.from(data)));
+    }
+    return out;
   }
 
   @override
