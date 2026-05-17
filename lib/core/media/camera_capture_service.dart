@@ -7,9 +7,17 @@ class CameraCaptureService {
 
   final ImagePicker _picker;
 
+  /// Fallback — systemowy aparat (image_picker).
   Future<XFile?> capturePhoto({int imageQuality = 85}) {
     return _picker.pickImage(
       source: ImageSource.camera,
+      imageQuality: imageQuality,
+    );
+  }
+
+  Future<XFile?> pickFromGallery({int imageQuality = 85}) {
+    return _picker.pickImage(
+      source: ImageSource.gallery,
       imageQuality: imageQuality,
     );
   }

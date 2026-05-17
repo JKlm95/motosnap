@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/locale/app_strings.dart';
 import '../../../../core/media/camera_capture_service.dart';
@@ -24,6 +25,28 @@ class ScanCubit extends Cubit<ScanState> {
   final ScanPermissionsService _permissions;
   final ScanProcessingCoordinator? _processing;
 
+  /// Zapis skanu z już wykonanego zdjęcia (embedded camera / galeria).
+  Future<void> saveScanFromPhoto(
+    XFile capturedPhoto,
+    String uiLanguageCode,
+  ) async {
+    final s = AppStrings.fromLanguageCode(uiLanguageCode);
+    emit(const ScanState(phase: ScanFlowPhase.requestingPermissions));
+    try {
+      await _permissions.ensureWhenInUseLocation();
+    } on ScanPermissionException catch (e) {
+      final msg = switch (e.denied) {
+        ScanPermissionDeniedKind.locationWhenInUse => s.errorLocationPermission,
+        ScanPermissionDeniedKind.camera => s.errorCameraPermission,
+      };
+      emit(ScanState(phase: ScanFlowPhase.error, errorMessage: msg));
+      return;
+    }
+
+    await _persistCapture(capturedPhoto, uiLanguageCode, s);
+  }
+
+  /// Fallback — systemowy aparat przez image_picker.
   Future<void> captureAndSaveScan(String uiLanguageCode) async {
     final s = AppStrings.fromLanguageCode(uiLanguageCode);
     emit(const ScanState(phase: ScanFlowPhase.requestingPermissions));
@@ -47,9 +70,25 @@ class ScanCubit extends Cubit<ScanState> {
       return;
     }
 
+    await _persistCapture(file, uiLanguageCode, s);
+  }
+
+  Future<void> importFromGallery(String uiLanguageCode) async {
+    final file = await _camera.pickFromGallery();
+    if (file == null) {
+      return;
+    }
+    await saveScanFromPhoto(file, uiLanguageCode);
+  }
+
+  Future<void> _persistCapture(
+    XFile capturedPhoto,
+    String uiLanguageCode,
+    AppStrings s,
+  ) async {
     emit(const ScanState(phase: ScanFlowPhase.saving));
     try {
-      final scan = await _repository.createScan(capturedPhoto: file);
+      final scan = await _repository.createScan(capturedPhoto: capturedPhoto);
       _processing?.enqueue(scan.id, uiLanguageCode);
       emit(
         ScanState(

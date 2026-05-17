@@ -18,6 +18,7 @@ class MainShellScaffold extends StatelessWidget {
 
     return MainShellLayout(
       bottomContentPadding: bottomPad,
+      isScanTabActive: navigationShell.currentIndex == 0,
       child: Scaffold(
         extendBody: true,
         body: navigationShell,

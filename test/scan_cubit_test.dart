@@ -62,6 +62,30 @@ void main() {
       await cubit.close();
     },
   );
+
+  test(
+    'ScanCubit saveScanFromPhoto emituje success bez systemowego aparatu',
+    () async {
+      final repo = _FakeScanRepo();
+      final cubit = ScanCubit(
+        scanRepository: repo,
+        cameraCapture: _ImmediateCamera(),
+        permissions: _AllowAllPermissions(),
+      );
+
+      final file = XFile.fromData(
+        Uint8List.fromList(List.filled(8, 0)),
+        name: 'embedded.jpg',
+        mimeType: 'image/jpeg',
+      );
+
+      await cubit.saveScanFromPhoto(file, 'en');
+      expect(cubit.state.phase, ScanFlowPhase.success);
+      expect(repo.lastCreated, isNotNull);
+
+      await cubit.close();
+    },
+  );
 }
 
 final class _ImmediateCamera implements CameraCaptureService {
@@ -71,11 +95,17 @@ final class _ImmediateCamera implements CameraCaptureService {
     name: 'test.jpg',
     mimeType: 'image/jpeg',
   );
+
+  @override
+  Future<XFile?> pickFromGallery({int imageQuality = 85}) async => null;
 }
 
 final class _AllowAllPermissions implements ScanPermissionsService {
   @override
   Future<void> ensureCameraAndWhenInUseLocation() async {}
+
+  @override
+  Future<void> ensureWhenInUseLocation() async {}
 }
 
 final class _FakeScanRepo implements ScanRepository {

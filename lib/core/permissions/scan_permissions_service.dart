@@ -8,13 +8,17 @@ export 'scan_permission_exception.dart';
 
 /// Prosi o uprawnienia potrzebne do lokalnego skanu (kamera + lokalizacja „when in use”).
 class ScanPermissionsService {
-  Future<void> ensureCameraAndWhenInUseLocation() async {
+  Future<void> ensureWhenInUseLocation() async {
     final location = await Permission.locationWhenInUse.request();
     if (!location.isGranted) {
       throw const ScanPermissionException(
         ScanPermissionDeniedKind.locationWhenInUse,
       );
     }
+  }
+
+  Future<void> ensureCameraAndWhenInUseLocation() async {
+    await ensureWhenInUseLocation();
 
     final camera = await Permission.camera.request();
     if (!camera.isGranted) {

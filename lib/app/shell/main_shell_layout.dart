@@ -8,10 +8,14 @@ class MainShellLayout extends InheritedWidget {
   const MainShellLayout({
     super.key,
     required this.bottomContentPadding,
+    this.isScanTabActive = false,
     required super.child,
   });
 
   final double bottomContentPadding;
+
+  /// Czy aktywna jest gałąź Skan (indeks 0) — do pauzowania embedded camera.
+  final bool isScanTabActive;
 
   static double paddingOf(BuildContext context) {
     return context
@@ -20,8 +24,16 @@ class MainShellLayout extends InheritedWidget {
         kShellGlassNavContentPadding;
   }
 
+  static bool scanTabActiveOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<MainShellLayout>()
+            ?.isScanTabActive ??
+        false;
+  }
+
   @override
   bool updateShouldNotify(MainShellLayout oldWidget) {
-    return oldWidget.bottomContentPadding != bottomContentPadding;
+    return oldWidget.bottomContentPadding != bottomContentPadding ||
+        oldWidget.isScanTabActive != isScanTabActive;
   }
 }

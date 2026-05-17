@@ -8,7 +8,7 @@ Aplikacja Flutter (Android / iOS) do skanowania pojazdów w terenie: zdjęcie z 
 
 ## Co robi produkt
 
-- **Skan:** uprawnienia → zdjęcie z kamery → szybki zapis lokalny (`waitingForRecognition`) → od razu można robić kolejny skan; sync do chmury i rozpoznanie AI lecą **w tle działającej aplikacji** (kolejka, nie OS background service).
+- **Skan:** pełnoekranowy **podgląd kamery w aplikacji** (pakiet `camera`) → zdjęcie bez wychodzenia do systemowego aparatu → szybki zapis lokalny (`waitingForRecognition`) → od razu kolejny skan; sync i AI w **kolejce w tle** (działająca aplikacja, nie OS background service). Fallback: galeria lub aparat systemowy (menu na ekranie Skan).
 - **Historia:** lista lokalna, filtry/sort (tylko klient), swipe (usuń / publiczność / ponów AI), skeleton przy pierwszym ładowaniu, pull-to-refresh.
 - **Szczegóły:** Hero z listy, nagłówek zdjęcia, panel szkła z `DraggableScrollableSheet`, AI na żądanie, korekta użytkownika, publiczność, usuwanie.
 - **Ustawienia:** motyw, konto, ręczny sync gdy Firebase jest skonfigurowany.

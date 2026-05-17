@@ -35,6 +35,14 @@ Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach c
 
 - Aplikacja jest **tylko w pionie** (`DeviceOrientation.portraitUp`) — ustawiane w [`main.dart`](lib/main.dart) przez `SystemChrome.setPreferredOrientations` przed `runApp` / `AppBootstrap.run`. To wystarcza na Android i iOS w typowym flow Flutter; ewentualne dopięcie `screenOrientation` w `AndroidManifest` / `Info.plist` nie jest wymagane na tym etapie.
 
+### Embedded camera (zakładka Skan)
+
+- **Główny flow:** pełnoekranowy podgląd na żywo w [`ScanScreen`](lib/features/scan/presentation/view/scan_screen.dart) przez pakiet [`camera`](https://pub.dev/packages/camera); logika sesji w [`ScanCameraController`](lib/features/scan/presentation/camera/scan_camera_controller.dart) + [`ScanCameraPreview`](lib/features/scan/presentation/camera/scan_camera_preview.dart) (osobny widget, `ListenableBuilder` — bez przebudowy całego `Scaffold` co klatkę).
+- **Capture:** `takePicture()` → [`ScanCubit.saveScanFromPhoto`](lib/features/scan/presentation/cubit/scan_cubit.dart) (tylko GPS + zapis lokalny; bez wychodzenia z aplikacji). Shutter flash + haptics w UI; kolejka sync/AI bez zmian.
+- **Lifecycle:** `WidgetsBindingObserver` (pause/resume aplikacji); `MainShellLayout.isScanTabActive` / `scanTabActiveOf` — pauza podglądu przy przejściu na Historię / Ustawienia (`pausePreview` / `resumePreview`), żeby nie trzymać kamery w tle i uniknąć czarnego ekranu po powrocie.
+- **Fallback:** menu ⋮ — **Galeria** (`CameraCaptureService.pickFromGallery` + `importFromGallery`) oraz **Aparat systemowy** (`captureAndSaveScan` → `image_picker` / natywny aparat). Zachowany dla urządzeń bez podglądu lub odmowy uprawnień.
+- **Uprawnienia:** podgląd prosi o kamerę przy starcie sesji; przy zapisie zdjęcia (embedded lub galeria) — `ensureWhenInUseLocation()`; przy systemowym aparacie — `ensureCameraAndWhenInUseLocation()`.
+
 ### Kolejka sync + AI w aplikacji (in-app background)
 
 - Po zdjęciu **blokuje UI wyłącznie lokalny zapis** (GPS, Hive, plik). [`ScanCubit`](lib/features/scan/presentation/cubit/scan_cubit.dart) od razu emituje sukces i ponownie odblokowuje aparat.
