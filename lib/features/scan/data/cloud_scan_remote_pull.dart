@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/sync/sync_restore_debug.dart';
 import '../domain/scan_repository.dart';
 import '../domain/vehicle_scan.dart';
 import 'vehicle_scan_firestore_mapper.dart';
@@ -28,50 +29,91 @@ abstract final class CloudScanRemotePull {
 
     for (final doc in remoteDocs) {
       final scanId = doc.id;
-      final remote = doc.data;
-      final local = localById[scanId];
+      try {
+        final remote = doc.data;
+        final local = localById[scanId];
 
-      if (local == null) {
-        final url = remote['remote_image_url'] as String?;
-        if (url == null || url.trim().isEmpty) {
-          if (kDebugMode) {
-            debugPrint('[Sync] pull skip $scanId: brak remote_image_url');
+        if (local == null) {
+          final url = remote['remote_image_url'] as String?;
+          final VehicleScan created;
+          try {
+            created = VehicleScanFirestoreMapper.createFromRemoteDocument(
+              scanId: scanId,
+              remote: remote,
+            );
+          } on Object catch (e, st) {
+            SyncRestoreDebug.logPhaseFailure(
+              phase: SyncRestoreFailurePhase.remoteMapping,
+              scanId: scanId,
+              error: e,
+              stackTrace: st,
+            );
+            rethrow;
           }
-          skipped++;
+          try {
+            await localRepository.updateScan(created);
+          } on Object catch (e, st) {
+            SyncRestoreDebug.logPhaseFailure(
+              phase: SyncRestoreFailurePhase.hivePersist,
+              scanId: scanId,
+              error: e,
+              stackTrace: st,
+            );
+            rethrow;
+          }
+          localById[scanId] = created;
+          downloaded++;
+          downloadedScanIds.add(scanId);
+          if (kDebugMode) {
+            final hasUrl = url != null && url.trim().isNotEmpty;
+            debugPrint(
+              hasUrl
+                  ? '[Sync] pull downloaded $scanId'
+                  : '[Sync] pull downloaded $scanId (metadata-only, brak remote_image_url)',
+            );
+          }
           continue;
         }
-        final created = VehicleScanFirestoreMapper.createFromRemoteDocument(
-          scanId: scanId,
+
+        final merged = VehicleScanFirestoreMapper.mergePull(
+          local: local,
           remote: remote,
         );
-        await localRepository.updateScan(created);
-        localById[scanId] = created;
-        downloaded++;
-        downloadedScanIds.add(scanId);
-        if (kDebugMode) {
-          debugPrint('[Sync] pull downloaded $scanId');
+        if (!VehicleScanFirestoreMapper.hasSyncRelevantChanges(local, merged)) {
+          skipped++;
+          if (kDebugMode) {
+            debugPrint('[Sync] pull skip $scanId: brak zmian');
+          }
+          continue;
         }
-        continue;
-      }
 
-      final merged = VehicleScanFirestoreMapper.mergePull(
-        local: local,
-        remote: remote,
-      );
-      if (!VehicleScanFirestoreMapper.hasSyncRelevantChanges(local, merged)) {
+        try {
+          await localRepository.updateScan(merged);
+        } on Object catch (e, st) {
+          SyncRestoreDebug.logPhaseFailure(
+            phase: SyncRestoreFailurePhase.hivePersist,
+            scanId: scanId,
+            error: e,
+            stackTrace: st,
+          );
+          rethrow;
+        }
+        localById[scanId] = merged;
+        updated++;
+        updatedScanIds.add(scanId);
+        if (kDebugMode) {
+          debugPrint(
+            '[Sync] pull updated $scanId status=${merged.status.name}',
+          );
+        }
+      } on Object catch (e, st) {
         skipped++;
-        if (kDebugMode) {
-          debugPrint('[Sync] pull skip $scanId: brak zmian');
-        }
-        continue;
-      }
-
-      await localRepository.updateScan(merged);
-      localById[scanId] = merged;
-      updated++;
-      updatedScanIds.add(scanId);
-      if (kDebugMode) {
-        debugPrint('[Sync] pull updated $scanId status=${merged.status.name}');
+        SyncRestoreDebug.logPhaseFailure(
+          phase: SyncRestoreFailurePhase.remoteMapping,
+          scanId: scanId,
+          error: e,
+          stackTrace: st,
+        );
       }
     }
 

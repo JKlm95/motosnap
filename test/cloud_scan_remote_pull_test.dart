@@ -127,6 +127,69 @@ void main() {
     expect(merged.vehicleInfo?.brand, 'CloudAI');
   });
 
+  test(
+    'pull: cloud scan bez remote_image_url → metadata-only download',
+    () async {
+      final repo = _MemoryRepo([]);
+      final remote = Map<String, dynamic>.from(remoteRecognized())
+        ..remove('remote_image_url');
+
+      final result = await CloudScanRemotePull.applyRemoteDocuments(
+        localRepository: repo,
+        localById: {},
+        remoteDocs: [(id: 'meta-1', data: remote)],
+      );
+
+      expect(result.downloaded, 1);
+      final saved = await repo.getScan('meta-1');
+      expect(saved!.status, VehicleScanStatus.recognized);
+      expect(saved.remoteImageUrl, isNull);
+      expect(saved.pendingSync, isTrue);
+      expect(
+        saved.localImagePath,
+        VehicleScanFirestoreMapper.remoteOnlyLocalImagePath,
+      );
+    },
+  );
+
+  test('pull: błąd zapisu jednego dokumentu nie blokuje pozostałych', () async {
+    final repo = _ThrowOnIdRepo(failId: 'bad');
+    final result = await CloudScanRemotePull.applyRemoteDocuments(
+      localRepository: repo,
+      localById: {},
+      remoteDocs: [
+        (id: 'bad', data: remoteRecognized()),
+        (id: 'good', data: remoteRecognized()),
+      ],
+    );
+
+    expect(result.downloaded, 1);
+    expect(result.skipped, 1);
+    expect(repo.scans.map((s) => s.id), ['good']);
+  });
+
+  test('cold start: pusta baza + 2 cloud docs → downloaded 2', () async {
+    final repo = _MemoryRepo([]);
+    final result = await CloudScanRemotePull.applyRemoteDocuments(
+      localRepository: repo,
+      localById: {},
+      remoteDocs: [
+        (id: 'c1', data: remoteRecognized()),
+        (
+          id: 'c2',
+          data: <String, dynamic>{
+            ...remoteRecognized(),
+            'status': 'waitingForRecognition',
+            'vehicle_info': null,
+          },
+        ),
+      ],
+    );
+
+    expect(result.downloaded, 2);
+    expect(repo.scans, hasLength(2));
+  });
+
   test('hasSyncRelevantChanges wykrywa zmianę statusu', () {
     final before = localWaiting();
     final after = VehicleScanRemoteMerger.mergeAfterFirestoreFetch(
@@ -139,6 +202,20 @@ void main() {
       isTrue,
     );
   });
+}
+
+final class _ThrowOnIdRepo extends _MemoryRepo {
+  _ThrowOnIdRepo({required this.failId}) : super([]);
+
+  final String failId;
+
+  @override
+  Future<void> updateScan(VehicleScan scan) async {
+    if (scan.id == failId) {
+      throw StateError('persist failed');
+    }
+    return super.updateScan(scan);
+  }
 }
 
 final class _MemoryRepo implements ScanRepository {

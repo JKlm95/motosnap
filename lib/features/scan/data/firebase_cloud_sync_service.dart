@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/remote/cloud_scan_sync_service.dart';
 import '../../../core/remote/sync_summary.dart';
+import '../../../core/sync/sync_restore_debug.dart';
 import '../domain/pending_scan_sync.dart';
 import '../domain/scan_repository.dart';
 import '../domain/user_correction_remote_sink.dart';
@@ -14,6 +15,7 @@ import '../domain/user_vehicle_correction.dart';
 import '../domain/vehicle_scan.dart';
 import '../domain/vehicle_scan_status.dart';
 import 'firebase_sync_timed.dart';
+import 'cloud_scan_collection_fetch.dart';
 import 'cloud_scan_remote_pull.dart';
 import 'vehicle_scan_remote_merger.dart';
 
@@ -135,48 +137,123 @@ final class FirebaseCloudSyncService
 
     final locals = await localRepository.getRecentScans(1 << 20);
     final localById = {for (final s in locals) s.id: s};
+    final coldStart = locals.isEmpty;
+
+    SyncRestoreDebug.logPullContext(
+      auth: _auth,
+      firestore: _firestore,
+      uid: uid,
+      localScanCount: locals.length,
+      coldStart: coldStart,
+    );
 
     if (kDebugMode) {
-      debugPrint('[Sync] pull local scans=${locals.length}');
+      debugPrint(
+        '[Sync] pull local scans=${locals.length} coldStart=$coldStart',
+      );
     }
 
-    final remoteDocs = <({String id, Map<String, dynamic> data})>[];
+    final remoteById = <String, CloudScanRemoteDoc>{};
     var pullReadFailures = 0;
+    var collectionParseSkipped = 0;
 
-    // Odczyt per scanId (zamiast collection.get) — stabilniejsze na regułach / cache.
-    for (final scan in locals) {
-      try {
-        final snap = await _fetchScanDocument(collection.doc(scan.id));
-        if (!snap.exists) {
-          if (kDebugMode) {
-            debugPrint('[Sync] pull skip ${scan.id}: brak dokumentu w chmurze');
-          }
-          continue;
-        }
-        final data = snap.data();
-        if (data == null) {
-          continue;
-        }
-        remoteDocs.add((id: scan.id, data: Map<String, dynamic>.from(data)));
-      } on Object catch (e, st) {
-        pullReadFailures++;
-        if (kDebugMode) {
-          debugPrint('[Sync] pull read ${scan.id} FAILED: $e\n$st');
+    // Główna ścieżka restore: lista kolekcji (reinstall / pusta Hive).
+    try {
+      final listed = await CloudScanCollectionFetch.fetchWithQueryFallback(
+        collection: collection,
+        executeQuery: (label, query) => firebaseSyncTimed(
+          query.get(const GetOptions(source: Source.server)),
+          kFirebaseSyncFirestoreReadTimeout,
+          FirebaseSyncPhase.firestoreReadPull,
+        ),
+      );
+      collectionParseSkipped = listed.parseSkipped;
+      for (final doc in listed.docs) {
+        remoteById[doc.id] = doc;
+      }
+      if (kDebugMode) {
+        debugPrint(
+          '[Sync] pull collection OK query=${listed.queryLabel} '
+          'cloudDocs=${listed.docs.length} parseSkipped=$collectionParseSkipped',
+        );
+      }
+    } on FirebaseException catch (e, st) {
+      pullReadFailures++;
+      SyncRestoreDebug.logFirebaseException(
+        context: 'pull collection (all query variants failed)',
+        e: e,
+        stackTrace: st,
+      );
+      if (coldStart) {
+        rethrow;
+      }
+    } on CloudScanCollectionFetchException catch (e, st) {
+      pullReadFailures++;
+      if (kDebugMode) {
+        debugPrint('[Sync] pull collection FAILED: $e\n$st');
+        final fe = e.lastFirebaseException;
+        if (fe != null) {
+          debugPrint(
+            '[Sync] pull collection last Firebase code=${fe.code} '
+            'message=${fe.message}',
+          );
         }
       }
-    }
-
-    // Opcjonalnie: skany tylko w chmurze (bez listy lokalnej nie znajdziemy ich inaczej).
-    try {
-      final cloudOnly = await _fetchCloudOnlyDocuments(collection, localById);
-      remoteDocs.addAll(cloudOnly);
-      if (kDebugMode && cloudOnly.isNotEmpty) {
-        debugPrint('[Sync] pull cloud-only docs=${cloudOnly.length}');
+      if (coldStart) {
+        rethrow;
       }
     } on Object catch (e, st) {
+      pullReadFailures++;
       if (kDebugMode) {
-        debugPrint('[Sync] pull cloud-only list skipped: $e\n$st');
+        debugPrint('[Sync] pull collection FAILED: $e\n$st');
       }
+      if (coldStart) {
+        rethrow;
+      }
+    }
+
+    // Uzupełnienie: lokalne scanId bez wpisu z listy (np. pending upload bez pełnej listy).
+    if (!coldStart) {
+      for (final scan in locals) {
+        if (remoteById.containsKey(scan.id)) {
+          continue;
+        }
+        try {
+          final snap = await _fetchScanDocument(collection.doc(scan.id));
+          if (!snap.exists) {
+            if (kDebugMode) {
+              debugPrint(
+                '[Sync] pull skip ${scan.id}: brak dokumentu w chmurze',
+              );
+            }
+            continue;
+          }
+          final data = snap.data();
+          if (data == null) {
+            continue;
+          }
+          remoteById[scan.id] = (
+            id: scan.id,
+            data: Map<String, dynamic>.from(data),
+          );
+        } on Object catch (e, st) {
+          pullReadFailures++;
+          SyncRestoreDebug.logPhaseFailure(
+            phase: SyncRestoreFailurePhase.perScanRead,
+            scanId: scan.id,
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }
+    }
+
+    final remoteDocs = remoteById.values.toList(growable: false);
+    if (kDebugMode) {
+      debugPrint(
+        '[Sync] pull merge local=${locals.length} '
+        'cloudDocs=${remoteDocs.length} pullReadFailures=$pullReadFailures',
+      );
     }
 
     final applied = await CloudScanRemotePull.applyRemoteDocuments(
@@ -190,7 +267,7 @@ final class FirebaseCloudSyncService
       updated: applied.updated,
       downloadedScanIds: applied.downloadedScanIds,
       updatedScanIds: applied.updatedScanIds,
-      skipped: applied.skipped,
+      skipped: applied.skipped + collectionParseSkipped,
       pullReadFailures: pullReadFailures,
     );
   }
@@ -217,27 +294,6 @@ final class FirebaseCloudSyncService
       }
       rethrow;
     }
-  }
-
-  Future<List<({String id, Map<String, dynamic> data})>>
-  _fetchCloudOnlyDocuments(
-    CollectionReference<Map<String, dynamic>> collection,
-    Map<String, VehicleScan> localById,
-  ) async {
-    final snap = await firebaseSyncTimed(
-      collection.get(const GetOptions(source: Source.server)),
-      kFirebaseSyncFirestoreReadTimeout,
-      FirebaseSyncPhase.firestoreReadPull,
-    );
-    final out = <({String id, Map<String, dynamic> data})>[];
-    for (final d in snap.docs) {
-      if (localById.containsKey(d.id)) {
-        continue;
-      }
-      final data = d.data();
-      out.add((id: d.id, data: Map<String, dynamic>.from(data)));
-    }
-    return out;
   }
 
   @override
