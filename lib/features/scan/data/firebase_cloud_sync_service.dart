@@ -91,6 +91,59 @@ final class FirebaseCloudSyncService
   }
 
   @override
+  Future<void> syncPendingScan(
+    ScanRepository localRepository,
+    String scanId,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Brak zalogowanego użytkownika.');
+    }
+    final scan = await localRepository.getScan(scanId);
+    if (scan == null) {
+      return;
+    }
+    final alreadySynced =
+        !scan.pendingSync &&
+        scan.remoteImageUrl != null &&
+        scan.remoteImageUrl!.isNotEmpty;
+    if (alreadySynced) {
+      return;
+    }
+    if (!scan.pendingSync) {
+      return;
+    }
+    try {
+      await _uploadSingleScan(localRepository, user.uid, scan);
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint(
+          'FirebaseCloudSyncService.syncPendingScan scan=$scanId FAILED: $e\n$st',
+        );
+      }
+      final code = firebaseSyncStoredErrorCode(e);
+      try {
+        await localRepository.updateScan(
+          scan.copyWith(
+            syncLastError: code,
+            pendingSync: true,
+            updateSyncLastError: true,
+            updatedAt: DateTime.now().toUtc(),
+          ),
+        );
+      } on Object catch (persistErr, persistSt) {
+        if (kDebugMode) {
+          debugPrint(
+            'FirebaseCloudSyncService: could not persist sync error for '
+            'scan=$scanId: $persistErr\n$persistSt',
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> pushUserCorrection(
     String scanId,
     UserVehicleCorrection correction,

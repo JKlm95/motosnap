@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:motosnap/core/firebase/cloud_sync_availability.dart';
 import 'package:motosnap/core/remote/sync_summary.dart';
 import 'package:motosnap/features/scan/domain/pending_scan_sync.dart';
-import 'package:motosnap/features/scan/domain/post_sync_recognition.dart';
+import 'package:motosnap/features/scan/domain/scan_processing_coordinator.dart';
 import 'package:motosnap/features/scan/domain/scan_location.dart';
 import 'package:motosnap/features/scan/domain/scan_repository.dart';
 import 'package:motosnap/features/scan/domain/user_vehicle_correction.dart';
@@ -42,20 +43,23 @@ void main() {
     },
   );
 
-  test('SyncCubit — po syncu coordinator uruchamia AI (upload ids)', () async {
+  test('SyncCubit — po syncu kolejka uruchamia AI (upload ids)', () async {
     final repo = _RepoWithOnePendingScan();
     final analysis = _AnalysisCallCounter();
-    final coord = PostSyncRecognitionCoordinator(
-      analysis: analysis,
+    final queue = ScanProcessingCoordinator(
       repository: repo,
+      cloudAvailability: const CloudSyncAvailability(available: true),
+      pendingSync: _PendingSyncMarksUploaded(),
+      analysis: analysis,
     );
     final cubit = SyncCubit(
       _PendingSyncMarksUploaded(),
       repo,
-      postSyncRecognition: coord,
+      processingCoordinator: queue,
     );
     await cubit.syncNow();
     expect(cubit.state.status, ManualSyncStatus.done);
+    await queue.waitUntilIdle();
     expect(analysis.calls, 1);
     await cubit.close();
   });
@@ -63,16 +67,19 @@ void main() {
   test('SyncCubit — brak uploadedScanIds nie woła AI', () async {
     final repo = _RepoWithOnePendingScan();
     final analysis = _AnalysisCallCounter();
-    final coord = PostSyncRecognitionCoordinator(
-      analysis: analysis,
+    final queue = ScanProcessingCoordinator(
       repository: repo,
+      cloudAvailability: const CloudSyncAvailability(available: true),
+      pendingSync: _PendingSyncNoUploads(),
+      analysis: analysis,
     );
     final cubit = SyncCubit(
       _PendingSyncNoUploads(),
       repo,
-      postSyncRecognition: coord,
+      processingCoordinator: queue,
     );
     await cubit.syncNow();
+    await queue.waitUntilIdle();
     expect(analysis.calls, 0);
     await cubit.close();
   });
@@ -83,6 +90,12 @@ final class _StubPendingSync implements PendingScanSync {
   Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
     return const SyncSummary(uploaded: 1, failed: 0);
   }
+
+  @override
+  Future<void> syncPendingScan(
+    ScanRepository localRepository,
+    String scanId,
+  ) async {}
 }
 
 final class _StubPendingSyncWithFailures implements PendingScanSync {
@@ -90,6 +103,12 @@ final class _StubPendingSyncWithFailures implements PendingScanSync {
   Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
     return const SyncSummary(uploaded: 1, failed: 2);
   }
+
+  @override
+  Future<void> syncPendingScan(
+    ScanRepository localRepository,
+    String scanId,
+  ) async {}
 }
 
 final class _FakeRepo implements ScanRepository {
@@ -184,6 +203,12 @@ final class _PendingSyncMarksUploaded implements PendingScanSync {
     );
     return const SyncSummary(uploaded: 1, failed: 0, uploadedScanIds: ['s1']);
   }
+
+  @override
+  Future<void> syncPendingScan(
+    ScanRepository localRepository,
+    String scanId,
+  ) async {}
 }
 
 final class _PendingSyncNoUploads implements PendingScanSync {
@@ -191,6 +216,12 @@ final class _PendingSyncNoUploads implements PendingScanSync {
   Future<SyncSummary> syncAllPending(ScanRepository localRepository) async {
     return const SyncSummary(uploaded: 0, failed: 1, uploadedScanIds: []);
   }
+
+  @override
+  Future<void> syncPendingScan(
+    ScanRepository localRepository,
+    String scanId,
+  ) async {}
 }
 
 final class _AnalysisCallCounter implements VehicleAnalysisService {

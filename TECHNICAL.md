@@ -31,6 +31,19 @@ Zasady: blur tylko tam, gdzie ma sens (nawigacja, pojedyncze karty), nie na każ
 
 Logika biznesowa skanowania i persystencji jest w **repozytorium** i serwisach core; widgety/Cubit ograniczają się do stanu UI i wywołań repozytorium.
 
+### Orientacja (MVP)
+
+- Aplikacja jest **tylko w pionie** (`DeviceOrientation.portraitUp`) — ustawiane w [`main.dart`](lib/main.dart) przez `SystemChrome.setPreferredOrientations` przed `runApp` / `AppBootstrap.run`. To wystarcza na Android i iOS w typowym flow Flutter; ewentualne dopięcie `screenOrientation` w `AndroidManifest` / `Info.plist` nie jest wymagane na tym etapie.
+
+### Kolejka sync + AI w aplikacji (in-app background)
+
+- Po zdjęciu **blokuje UI wyłącznie lokalny zapis** (GPS, Hive, plik). [`ScanCubit`](lib/features/scan/presentation/cubit/scan_cubit.dart) od razu emituje sukces i ponownie odblokowuje aparat.
+- Sync chmury + callable AI idą przez [`ScanProcessingCoordinator`](lib/features/scan/domain/scan_processing_coordinator.dart): `enqueue(scanId)` → sekwencyjnie `PendingScanSync.syncPendingScan` (pojedynczy skan, nie `syncAllPending` po każdym zdjęciu) → [`PostSyncRecognitionPolicy`](lib/features/scan/domain/post_sync_recognition.dart) → `VehicleAnalysisService.analyzeScan` (deduplikacja `_inFlight` w [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart)).
+- Ten sam `scanId` nie jest dodawany do kolejki drugi raz, dopóki poprzednie zadanie trwa. Ręczny sync w [`SyncCubit`](lib/features/settings/presentation/cubit/sync_cubit.dart) nadal woła `syncAllPending`, potem **enqueue** dla `uploadedScanIds` + `enqueuePendingScans` (limit domyślnie **64** ostatnich skanów — kompromis przy `getRecentScans`, bez pełnego skanu 1M rekordów).
+- Po **wznowieniu** aplikacji (`AppLifecycleState.resumed`, [`_AppForegroundCoordinator`](lib/app/bootstrap.dart)) kolejka ponawia pending processing z tym samym limitem.
+- **To nie jest** OS background service (Workmanager / iOS BGTask): po zabiciu aplikacji kolejka nie działa do następnego uruchomienia lub resume. Prawdziwy processing w tle systemu to osobny przyszły etap.
+- [`PostSyncRecognitionCoordinator`](lib/features/scan/domain/post_sync_recognition.dart) pozostaje dla polityki `shouldRun`; główna ścieżka produktowa używa kolejki zamiast blokowania UI na sync/AI.
+
 ---
 
 ## Teksty UI i język (MVP)
@@ -130,7 +143,8 @@ Metody:
 - **Upload klienta (merge):** przy istniejącym dokumencie **nie** wysyła `vehicle_info`, `recognized_at`, `recognition_error` ani `status` — uniknięcie nadpisania wyniku AI i degradacji statusu z `recognized` do `waitingForRecognition`. Przy pierwszym utworzeniu dokumentu wysyłany jest `status: waitingForRecognition`. Zawsze wysyłane są m.in. `remote_image_url`, `is_public`, lokalizacja, `schema_version`, opcjonalnie `user_correction` jeśli istnieje lokalnie.
 - **Scalanie po zapisie:** po `set(merge)` wykonywany jest `get` dokumentu; [`VehicleScanRemoteMerger`](lib/features/scan/data/vehicle_scan_remote_merger.dart) scala odpowiedź z lokalnym `VehicleScan` i zapisuje wynik w Hive (`pendingSync: false`, `remoteImageUrl`, pola AI z Firestore gdy ustawione, ochrona lokalnego stanu „po AI” gdy w chmurze nadal brak `vehicle_info` / status niekońcowy). `user_correction`: wybór nowszego znacznika `corrected_at` (lokal vs zdalny). `localImagePath` i `location` pozostają lokalne.
 - Po sukcesie scalenia: czyszczenie `sync_last_error`. Przy błędzie uploadu: `sync_last_error` + `pendingSync` pozostaje `true`.
-- **Automatyczne rozpoznanie AI po syncu:** przy dostępnej chmurze, po zrobieniu zdjęcia [`ScanCubit`](lib/features/scan/presentation/cubit/scan_cubit.dart) wywołuje `syncAllPending`, potem [`PostSyncRecognitionCoordinator`](lib/features/scan/domain/post_sync_recognition.dart) dla `SyncSummary.uploadedScanIds` odpala [`VehicleAnalysisService.analyzeScan`](lib/features/scan/domain/vehicle_analysis_service.dart), o ile [`PostSyncRecognitionPolicy`](lib/features/scan/domain/post_sync_recognition.dart) (`!pendingSync`, `remoteImageUrl`, status `waitingForRecognition`, brak `vehicleInfo`). Identycznie po **Synchronizuj teraz** w [`SyncCubit`](lib/features/settings/presentation/cubit/sync_cubit.dart). AI **nie** startuje przed pomyślnym merge skanu po uploadzie. Duplikaty równoległego `analyzeScan` dla jednego `scanId` są łączone w [`FirebaseVehicleAnalysisService`](lib/features/scan/data/firebase_vehicle_analysis_service.dart). Błąd AI: lokalny `failed` + możliwość ręcznego ponowienia w szczegółach.
+- **Sync pojedynczego skanu:** [`PendingScanSync.syncPendingScan`](lib/features/scan/domain/pending_scan_sync.dart) — używane przez kolejkę; ręczny „Synchronizuj wszystkie” nadal przez `syncAllPending`.
+- **Automatyczne rozpoznanie AI:** po lokalnym zapisie — [`ScanProcessingCoordinator.enqueue`](lib/features/scan/domain/scan_processing_coordinator.dart); po ręcznym syncu — enqueue dla udanych `uploadedScanIds` + `enqueuePendingScans`. AI **nie** startuje przed pomyślnym merge po uploadzie ([`PostSyncRecognitionPolicy`](lib/features/scan/domain/post_sync_recognition.dart)). Duplikaty `analyzeScan` dla jednego `scanId` łączy `_inFlight` w `FirebaseVehicleAnalysisService`. Błąd AI: lokalny `failed` + retry w szczegółach / historii.
 - UI: `SettingsScreen` → „Synchronizuj teraz” + `SyncCubit`; podsumowanie w `SnackBar` (liczba OK / błędów); przy `failed > 0` dodatkowo komunikat `errorSyncScanConnection` (bez surowego tekstu Firebase).
 
 ### Cloud Functions — rozpoznanie pojazdu (Gemini)

@@ -38,9 +38,7 @@ class ScanScreen extends StatelessWidget {
           final busy =
               state.phase == ScanFlowPhase.requestingPermissions ||
               state.phase == ScanFlowPhase.capturing ||
-              state.phase == ScanFlowPhase.saving ||
-              state.phase == ScanFlowPhase.syncingCloud ||
-              state.phase == ScanFlowPhase.recognizingVehicle;
+              state.phase == ScanFlowPhase.saving;
 
           final showRadar =
               state.phase != ScanFlowPhase.success &&
@@ -50,8 +48,6 @@ class ScanScreen extends StatelessWidget {
           String? flowHint() {
             return switch (state.phase) {
               ScanFlowPhase.saving => s.scanFlowSaving,
-              ScanFlowPhase.syncingCloud => s.scanFlowSyncing,
-              ScanFlowPhase.recognizingVehicle => s.scanFlowRecognizing,
               _ => null,
             };
           }
@@ -84,7 +80,11 @@ class ScanScreen extends StatelessWidget {
                   ],
                   if (state.phase == ScanFlowPhase.success &&
                       state.savedScan != null)
-                    _SuccessCard(s: s, scan: state.savedScan!)
+                    _SuccessCard(
+                      s: s,
+                      scan: state.savedScan!,
+                      backgroundQueued: state.backgroundQueued,
+                    )
                   else if (state.errorMessage != null)
                     _ErrorCard(
                       message: state.errorMessage!,
@@ -319,10 +319,15 @@ class _ScanCaptureControlState extends State<_ScanCaptureControl> {
 }
 
 class _SuccessCard extends StatelessWidget {
-  const _SuccessCard({required this.s, required this.scan});
+  const _SuccessCard({
+    required this.s,
+    required this.scan,
+    required this.backgroundQueued,
+  });
 
   final AppStrings s;
   final VehicleScan scan;
+  final bool backgroundQueued;
 
   @override
   Widget build(BuildContext context) {
@@ -334,6 +339,8 @@ class _SuccessCard extends StatelessWidget {
         ? s.scanSavedRecognized
         : failed
         ? s.scanSavedRecognitionFailed
+        : backgroundQueued
+        ? s.scanSavedBackgroundRecognition
         : s.scanSavedLocally;
 
     final String subtitle;
@@ -352,6 +359,10 @@ class _SuccessCard extends StatelessWidget {
           (scan.recognitionError != null && scan.recognitionError!.isNotEmpty)
           ? scan.recognitionError!
           : s.scanSavedStatusLine(s.scanStatus(scan.status));
+    } else if (backgroundQueued) {
+      subtitle = scan.pendingSync
+          ? s.scanBackgroundProcessingQueued
+          : s.scanRecognitionRunningInBackground;
     } else {
       subtitle = s.scanSavedStatusLine(s.scanStatus(scan.status));
     }
@@ -370,7 +381,20 @@ class _SuccessCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(subtitle),
           const SizedBox(height: 6),
-          if (!recognized && !failed && scan.pendingSync)
+          if (!recognized &&
+              !failed &&
+              backgroundQueued &&
+              !scan.pendingSync &&
+              scan.status == VehicleScanStatus.waitingForRecognition)
+            Text(
+              s.scanRecognitionRunningInBackground,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.65),
+              ),
+            )
+          else if (!recognized && !failed && scan.pendingSync)
             Text(
               s.scanAiPendingHint,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(

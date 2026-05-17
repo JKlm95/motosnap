@@ -156,6 +156,15 @@ class AppStrings {
       : 'Take a photo with the camera. GPS location is required — the scan cannot be saved without it.';
   String get scanButton => _pl ? 'Skanuj' : 'Scan';
   String get scanSavedLocally => _pl ? 'Zapisano lokalnie' : 'Saved locally';
+  String get scanSavedBackgroundRecognition => _pl
+      ? 'Skan zapisany. Rozpoznawanie uruchomiono w tle.'
+      : 'Scan saved. Recognition is running in the background.';
+  String get scanBackgroundProcessingQueued => _pl
+      ? 'Synchronizacja i rozpoznawanie w kolejce.'
+      : 'Sync and recognition queued.';
+  String get scanRecognitionRunningInBackground => _pl
+      ? 'Rozpoznawanie trwa w tle — wynik pojawi się w historii.'
+      : 'Recognition is running in the background — check History for results.';
   String get scanFlowSaving => _pl ? 'Zapisywanie skanu…' : 'Saving scan…';
   String get scanFlowSyncing =>
       _pl ? 'Wysyłanie do chmury…' : 'Syncing to cloud…';

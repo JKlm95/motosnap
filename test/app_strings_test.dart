@@ -29,6 +29,13 @@ void main() {
         'Nie udało się zsynchronizować skanu. Sprawdź połączenie internetowe i spróbuj ponownie.',
       );
     });
+
+    test('scanSavedBackgroundRecognition', () {
+      expect(
+        s.scanSavedBackgroundRecognition,
+        'Skan zapisany. Rozpoznawanie uruchomiono w tle.',
+      );
+    });
   });
 
   group('AppStrings EN', () {
@@ -47,6 +54,13 @@ void main() {
       expect(
         s.errorSyncScanConnection,
         'Could not sync the scan. Check your internet connection and try again.',
+      );
+    });
+
+    test('scanSavedBackgroundRecognition', () {
+      expect(
+        s.scanSavedBackgroundRecognition,
+        'Scan saved. Recognition is running in the background.',
       );
     });
   });

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -20,6 +21,7 @@ import '../features/scan/data/noop_vehicle_analysis_service.dart';
 import '../features/scan/data/scan_repository_impl.dart';
 import '../features/scan/domain/pending_scan_sync.dart';
 import '../features/scan/domain/post_sync_recognition.dart';
+import '../features/scan/domain/scan_processing_coordinator.dart';
 import '../features/scan/domain/scan_repository.dart';
 import '../features/scan/domain/user_correction_remote_sink.dart';
 import '../features/scan/domain/vehicle_analysis_service.dart';
@@ -87,6 +89,17 @@ class AppBootstrap {
           )
         : null;
 
+    final cloudAvailability = CloudSyncAvailability(available: firebaseReady);
+
+    final ScanProcessingCoordinator? scanProcessing = firebaseReady
+        ? ScanProcessingCoordinator(
+            repository: scanRepository,
+            cloudAvailability: cloudAvailability,
+            pendingSync: firebaseCloudSync,
+            analysis: vehicleAnalysis,
+          )
+        : null;
+
     final settingsRepository = SettingsRepositoryImpl(settingsLocal);
     final cameraCapture = CameraCaptureService();
 
@@ -106,19 +119,68 @@ class AppBootstrap {
         RepositoryProvider<PostSyncRecognitionCoordinator?>.value(
           value: postSyncRecognition,
         ),
+        RepositoryProvider<ScanProcessingCoordinator?>.value(
+          value: scanProcessing,
+        ),
         RepositoryProvider<CloudSyncAvailability>.value(
-          value: CloudSyncAvailability(available: firebaseReady),
+          value: cloudAvailability,
         ),
       ],
       child: BlocProvider(
         create: (_) => SettingsCubit(settingsRepository)..load(),
         child: _RouterLifecycle(
           refreshBridge: refreshBridge,
-          child: MotosnapApp(routerConfig: router),
+          child: _AppForegroundCoordinator(
+            coordinator: scanProcessing,
+            child: MotosnapApp(routerConfig: router),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Po powrocie do foreground wznawia kolejkę pending skanów (limit w coordinatorze).
+final class _AppForegroundCoordinator extends StatefulWidget {
+  const _AppForegroundCoordinator({
+    required this.coordinator,
+    required this.child,
+  });
+
+  final ScanProcessingCoordinator? coordinator;
+  final Widget child;
+
+  @override
+  State<_AppForegroundCoordinator> createState() =>
+      _AppForegroundCoordinatorState();
+}
+
+final class _AppForegroundCoordinatorState
+    extends State<_AppForegroundCoordinator>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.coordinator?.enqueuePendingScans(
+        languageCode: PlatformDispatcher.instance.locale.languageCode,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 final class _RouterLifecycle extends StatefulWidget {

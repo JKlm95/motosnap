@@ -1,11 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/firebase/cloud_sync_availability.dart';
 import '../../../../core/locale/app_strings.dart';
 import '../../../../core/media/camera_capture_service.dart';
 import '../../../../core/permissions/scan_permissions_service.dart';
-import '../../domain/pending_scan_sync.dart';
-import '../../domain/post_sync_recognition.dart';
+import '../../domain/scan_processing_coordinator.dart';
 import '../../domain/scan_repository.dart';
 import 'scan_state.dart';
 
@@ -14,23 +12,17 @@ class ScanCubit extends Cubit<ScanState> {
     required ScanRepository scanRepository,
     required CameraCaptureService cameraCapture,
     required ScanPermissionsService permissions,
-    required CloudSyncAvailability cloudAvailability,
-    PendingScanSync? pendingSync,
-    PostSyncRecognitionCoordinator? postSyncRecognition,
+    ScanProcessingCoordinator? processingCoordinator,
   }) : _repository = scanRepository,
        _camera = cameraCapture,
        _permissions = permissions,
-       _cloudAvailability = cloudAvailability,
-       _pendingSync = pendingSync,
-       _postSyncRecognition = postSyncRecognition,
+       _processing = processingCoordinator,
        super(const ScanState());
 
   final ScanRepository _repository;
   final CameraCaptureService _camera;
   final ScanPermissionsService _permissions;
-  final CloudSyncAvailability _cloudAvailability;
-  final PendingScanSync? _pendingSync;
-  final PostSyncRecognitionCoordinator? _postSyncRecognition;
+  final ScanProcessingCoordinator? _processing;
 
   Future<void> captureAndSaveScan(String uiLanguageCode) async {
     final s = AppStrings.fromLanguageCode(uiLanguageCode);
@@ -58,25 +50,14 @@ class ScanCubit extends Cubit<ScanState> {
     emit(const ScanState(phase: ScanFlowPhase.saving));
     try {
       final scan = await _repository.createScan(capturedPhoto: file);
-
-      if (_cloudAvailability.available &&
-          _pendingSync != null &&
-          _postSyncRecognition != null) {
-        emit(ScanState(phase: ScanFlowPhase.syncingCloud, savedScan: scan));
-        final summary = await _pendingSync.syncAllPending(_repository);
-        if (summary.uploadedScanIds.isNotEmpty) {
-          emit(
-            ScanState(phase: ScanFlowPhase.recognizingVehicle, savedScan: scan),
-          );
-          await _postSyncRecognition.runAfterSyncIfNeeded(
-            summary: summary,
-            languageCode: uiLanguageCode,
-          );
-        }
-      }
-
-      final refreshed = await _repository.getScan(scan.id) ?? scan;
-      emit(ScanState(phase: ScanFlowPhase.success, savedScan: refreshed));
+      _processing?.enqueue(scan.id, uiLanguageCode);
+      emit(
+        ScanState(
+          phase: ScanFlowPhase.success,
+          savedScan: scan,
+          backgroundQueued: _processing != null,
+        ),
+      );
     } on Object catch (e) {
       emit(
         ScanState(phase: ScanFlowPhase.error, errorMessage: _mapError(s, e)),

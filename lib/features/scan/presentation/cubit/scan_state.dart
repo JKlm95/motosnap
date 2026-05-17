@@ -18,12 +18,16 @@ class ScanState extends Equatable {
     this.phase = ScanFlowPhase.idle,
     this.savedScan,
     this.errorMessage,
+    this.backgroundQueued = false,
   });
 
   final ScanFlowPhase phase;
   final VehicleScan? savedScan;
   final String? errorMessage;
 
+  /// Sync + AI zostały dodane do kolejki w aplikacji (nie czekamy na wynik).
+  final bool backgroundQueued;
+
   @override
-  List<Object?> get props => [phase, savedScan, errorMessage];
+  List<Object?> get props => [phase, savedScan, errorMessage, backgroundQueued];
 }
