@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Blocks committing production Firebase client config and other secrets.
 # Default: scans git STAGED files only (pre-commit). CI sets CHECK_NO_SECRETS_FULL=1.
 set -euo pipefail
