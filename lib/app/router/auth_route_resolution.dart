@@ -16,6 +16,7 @@ abstract final class AuthRouteResolution {
     final isShellPath =
         location == AppRoutes.scanRelative ||
         location == AppRoutes.historyRelative ||
+        location == AppRoutes.mapRelative ||
         location == AppRoutes.settingsRelative;
     final isVehicleScan = location.startsWith('/vehicle-scan/');
 

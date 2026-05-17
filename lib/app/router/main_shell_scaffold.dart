@@ -25,6 +25,7 @@ class MainShellScaffold extends StatelessWidget {
         bottomNavigationBar: GlassShellBottomNav(
           currentBranchIndex: navigationShell.currentIndex,
           historyLabel: s.historyTitle,
+          mapLabel: s.mapTitle,
           scanLabel: s.scanTabTitle,
           settingsLabel: s.settingsTitle,
           onBranchSelected: (index) {

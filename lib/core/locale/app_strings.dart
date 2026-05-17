@@ -221,6 +221,15 @@ class AppStrings {
   String get photoCancelled => _pl ? 'Anulowano zdjęcie.' : 'Photo cancelled.';
 
   // --- History ---
+  String get mapTitle => _pl ? 'Mapa' : 'Map';
+  String get mapEmptyTitle =>
+      _pl ? 'Brak skanów na mapie' : 'No scans on the map';
+  String get mapEmptyBody => _pl
+      ? 'Tutaj zobaczysz skany z zapisaną lokalizacją GPS. Zrób skan z włączoną lokalizacją.'
+      : 'Scans with saved GPS will appear here. Capture a scan with location enabled.';
+  String get mapEmptyCta => _pl ? 'Przejdź do skanowania' : 'Go to scan';
+  String get mapScanUntitled => _pl ? 'Skan pojazdu' : 'Vehicle scan';
+
   String get historyTitle => _pl ? 'Historia' : 'History';
   String get historyRefreshTooltip => _pl ? 'Odśwież' : 'Refresh';
   String get historyEmpty => _pl

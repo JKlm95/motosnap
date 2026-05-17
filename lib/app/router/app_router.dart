@@ -15,6 +15,8 @@ import '../../features/auth/presentation/register/cubit/register_cubit.dart';
 import '../../features/auth/presentation/register/register_screen.dart';
 import '../../features/history/presentation/cubit/history_cubit.dart';
 import '../../features/history/presentation/view/history_screen.dart';
+import '../../features/map/presentation/cubit/scan_map_cubit.dart';
+import '../../features/map/presentation/view/scan_map_screen.dart';
 import '../../features/scan/domain/scan_processing_coordinator.dart';
 import '../../features/scan/domain/scan_repository.dart';
 import '../../features/scan/domain/vehicle_analysis_service.dart';
@@ -146,6 +148,17 @@ abstract final class AppRouter {
                       ).languageCode,
                     ),
                     child: const HistoryScreen(),
+                  ),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: AppRoutes.mapRelative,
+                  builder: (context, state) => BlocProvider(
+                    create: (_) => ScanMapCubit(context.read<ScanRepository>()),
+                    child: const ScanMapScreen(),
                   ),
                 ),
               ],

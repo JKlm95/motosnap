@@ -9,12 +9,15 @@ import '../../core/ui/app_motion.dart';
 import '../../core/ui/app_shape.dart';
 import '../../core/ui/glass/glass_bottom_bar.dart';
 
-/// Pływająca nawigacja shell (History | Scan | Settings).
+/// Gałęzie shell: 0 Skan, 1 Historia, 2 Mapa, 3 Ustawienia.
+///
+/// Pływająca nawigacja: Historia | Mapa | [Skan FAB] | Ustawienia.
 class GlassShellBottomNav extends StatelessWidget {
   const GlassShellBottomNav({
     required this.currentBranchIndex,
     required this.onBranchSelected,
     required this.historyLabel,
+    required this.mapLabel,
     required this.scanLabel,
     required this.settingsLabel,
     super.key,
@@ -23,6 +26,7 @@ class GlassShellBottomNav extends StatelessWidget {
   final int currentBranchIndex;
   final ValueChanged<int> onBranchSelected;
   final String historyLabel;
+  final String mapLabel;
   final String scanLabel;
   final String settingsLabel;
 
@@ -41,7 +45,7 @@ class GlassShellBottomNav extends StatelessWidget {
       container: true,
       label: 'Navigation',
       child: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: SizedBox(
           height: 78,
           child: Stack(
@@ -56,28 +60,46 @@ class GlassShellBottomNav extends StatelessWidget {
                 child: GlassBottomBar(
                   blurSigma: AppShape.blurNavBar,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 6,
                     vertical: 8,
                   ),
                   child: Row(
                     children: [
                       Expanded(
-                        child: _SideNavItem(
-                          icon: Icons.history_rounded,
-                          label: historyLabel,
-                          selected: idx == 1,
-                          onTap: () => _select(1),
-                          semanticLabel: historyLabel,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _SideNavItem(
+                                icon: Icons.history_rounded,
+                                label: historyLabel,
+                                selected: idx == 1,
+                                onTap: () => _select(1),
+                                semanticLabel: historyLabel,
+                                compact: true,
+                              ),
+                            ),
+                            Expanded(
+                              child: _SideNavItem(
+                                icon: Icons.map_rounded,
+                                label: mapLabel,
+                                selected: idx == 2,
+                                onTap: () => _select(2),
+                                semanticLabel: mapLabel,
+                                compact: true,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 76),
+                      const SizedBox(width: 72),
                       Expanded(
                         child: _SideNavItem(
                           icon: Icons.tune_rounded,
                           label: settingsLabel,
-                          selected: idx == 2,
-                          onTap: () => _select(2),
+                          selected: idx == 3,
+                          onTap: () => _select(3),
                           semanticLabel: settingsLabel,
+                          compact: true,
                         ),
                       ),
                     ],
@@ -107,6 +129,7 @@ class _SideNavItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.semanticLabel,
+    this.compact = false,
   });
 
   final IconData icon;
@@ -114,6 +137,7 @@ class _SideNavItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final String semanticLabel;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +151,7 @@ class _SideNavItem extends StatelessWidget {
         child: AnimatedContainer(
           duration: AppDurations.fast,
           curve: AppDurations.standard,
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: EdgeInsets.symmetric(vertical: compact ? 4 : 6),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.md),
             color: selected
@@ -147,7 +171,7 @@ class _SideNavItem extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  size: 22,
+                  size: compact ? 20 : 22,
                   color: selected
                       ? AppColors.primaryRed
                       : AppColors.textSecondary,
@@ -158,6 +182,7 @@ class _SideNavItem extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: compact ? 10 : null,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected
                         ? AppColors.primaryRed

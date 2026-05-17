@@ -10,6 +10,7 @@ Aplikacja Flutter (Android / iOS) do skanowania pojazdów w terenie: zdjęcie z 
 
 - **Skan:** pełnoekranowy **podgląd kamery w aplikacji** (pakiet `camera`) → zdjęcie bez wychodzenia do systemowego aparatu → szybki zapis lokalny (`waitingForRecognition`) → od razu kolejny skan; sync i AI w **kolejce w tle** (działająca aplikacja, nie OS background service). Fallback: galeria lub aparat systemowy (menu na ekranie Skan).
 - **Historia:** lista lokalna, filtry/sort (tylko klient), swipe (usuń / publiczność / ponów AI), skeleton przy pierwszym ładowaniu, pull-to-refresh.
+- **Mapa (prywatna):** Twoje skany z zapisanym GPS na mapie OpenStreetMap (`flutter_map`, bez klucza API); marker → podgląd → szczegóły. **Mapa społecznościowa / publiczne skany innych użytkowników** — roadmapa (osobny etap).
 - **Szczegóły:** Hero z listy, nagłówek zdjęcia, panel szkła z `DraggableScrollableSheet`, AI na żądanie, korekta użytkownika, publiczność, usuwanie.
 - **Ustawienia:** motyw, konto, ręczny sync gdy Firebase jest skonfigurowany.
 
@@ -57,6 +58,6 @@ W repozytorium jest workflow GitHub Actions (`ci.yml`) — ten sam zestaw krokó
 ## Dalszy rozwój (wysoki poziom)
 
 1. AI / sync w tle, kolejki, retry.
-2. Publiczny feed tylko z przybliżoną lokalizacją (bez dokładnego GPS w danych publicznych).
+2. Publiczny feed i **community map** tylko z przybliżoną lokalizacją (`isPublic`, osobne query, zaokrąglenie współrzędnych, review reguł).
 
 Kod trzyma się feature-first, repozytoriów i jawnych komunikatów błędów zamiast „udawania” gotowych integracji.

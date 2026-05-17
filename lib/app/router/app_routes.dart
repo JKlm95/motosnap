@@ -6,9 +6,10 @@ abstract final class AppRoutes {
   static const register = '/auth/register';
   static const forgotPassword = '/auth/forgot-password';
 
-  /// Bazowy segment StatefulShell — pełne URL-e to `/scan`, `/history`, `/settings`.
+  /// Bazowy segment StatefulShell — pełne URL-e: `/scan`, `/history`, `/map`, `/settings`.
   static const scanRelative = '/scan';
   static const historyRelative = '/history';
+  static const mapRelative = '/map';
   static const settingsRelative = '/settings';
 
   /// Pełnoekranowy widok rekordu skanu (poza shell).
