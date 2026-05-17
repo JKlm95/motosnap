@@ -26,6 +26,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check for leaked secrets / production Firebase client config
+        run: CHECK_NO_SECRETS_FULL=1 bash scripts/check_no_secrets.sh
+
       - name: Set up Java 17 (Android / Gradle)
         uses: actions/setup-java@v4
         with:

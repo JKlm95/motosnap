@@ -107,6 +107,16 @@ Metody:
 
 ---
 
+## Bezpieczeństwo repozytorium (obowiązkowe przed commitem)
+
+- **Zasada:** publiczne repo = **placeholdery** w plikach klienckich Firebase; prawdziwy projekt tylko lokalnie (`flutterfire configure`, bez commitu).
+- **Skan:** [`scripts/check_no_secrets.sh`](scripts/check_no_secrets.sh) (CI + lokalnie). Windows: [`scripts/check_no_secrets.ps1`](scripts/check_no_secrets.ps1).
+- **Blokuje m.in.:** prawdziwe `AIza…` (poza `AIzaSyDummy…` / `REPLACE_ME`), markery produkcyjnego projektu w `google-services.json` / `firebase_options.dart` / `firebase.json` / iOS plist, sekcję `"flutter"` w `firebase.json`, wzorce `private_key` / `BEGIN PRIVATE KEY` / `GEMINI_API_KEY=` / `sk-…`, śledzone pliki `.env`.
+- **Nie skanuje:** [`.firebaserc`](.firebaserc) (ID projektu pod `firebase deploy` — nie jest kluczem API).
+- **Checklist agenta / maintainera przed `git commit`:** `git status` → `git diff` (szczególnie `google-services.json`, `firebase.json`, `firebase_options.dart`) → `bash scripts/check_no_secrets.sh` (skanuje **tylko zmienione pliki** — lokalny config po `flutterfire configure` może zostać na dysku, o ile go nie stage’ujesz) → dopiero commit. CI: `CHECK_NO_SECRETS_FULL=1` — pełny skan drzewa. Po wycieku klucza: rotacja w GCP, **nie** polegać wyłącznie na usunięciu z ostatniego commita.
+
+---
+
 ## Firebase (MVP)
 
 ### Inicjalizacja
